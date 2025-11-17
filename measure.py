@@ -77,6 +77,11 @@ def metrics(im_dir, label_dir, use_GT_mean):
     n = 0
     loss_fn = lpips.LPIPS(net='alex')
     loss_fn.cuda()
+
+    # Ensure label_dir has trailing slash
+    if not label_dir.endswith('/') and not label_dir.endswith('\\'):
+        label_dir = label_dir + '/'
+
     for item in tqdm(sorted(glob.glob(im_dir))):
         n += 1
         
