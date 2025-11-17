@@ -7,7 +7,7 @@ echo "Training Baseline Model (No Face Recognition Loss)"
 echo "========================================================================"
 
 python train.py \
-    --lfw=True \
+    --lfw \
     --data_train_lfw=./datasets/LFW_lowlight/train \
     --data_val_lfw=./datasets/LFW_lowlight/val \
     --data_valgt_lfw=./datasets/LFW_lowlight/val/high \

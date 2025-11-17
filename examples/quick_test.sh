@@ -16,6 +16,26 @@ else
     echo "[1/3] Using existing small dataset: ./datasets/LFW_small"
 fi
 
+# Check for pretrained weights
+CIDNET_WEIGHTS="./weights/LOLv2_real/best_PSNR.pth"
+ADAFACE_WEIGHTS="./pretrained/adaface/adaface_ir50_webface4m.ckpt"
+
+if [ -f "$CIDNET_WEIGHTS" ]; then
+    echo "✓ Using pretrained CIDNet: $CIDNET_WEIGHTS"
+    CIDNET_ARG="--pretrained_model=$CIDNET_WEIGHTS"
+else
+    echo "⚠ Training from scratch (no pretrained CIDNet)"
+    CIDNET_ARG=""
+fi
+
+if [ -f "$ADAFACE_WEIGHTS" ]; then
+    echo "✓ Using pretrained AdaFace: $ADAFACE_WEIGHTS"
+    ADAFACE_ARG="--FR_model_path=$ADAFACE_WEIGHTS"
+else
+    echo "⚠ Using randomly initialized AdaFace (not recommended)"
+    ADAFACE_ARG=""
+fi
+
 # Step 2: Quick training test (10 epochs)
 echo ""
 echo "[2/3] Running quick training test (10 epochs)..."
@@ -23,18 +43,20 @@ echo "This will verify that the face recognition loss is working correctly."
 echo ""
 
 python train.py \
-    --lfw=True \
+    --lfw \
     --data_train_lfw=./datasets/LFW_small/train \
     --data_val_lfw=./datasets/LFW_small/val \
     --data_valgt_lfw=./datasets/LFW_small/val/high \
+    $CIDNET_ARG \
     --batchSize=4 \
-    --cropSize=128 \
+    --cropSize=256 \
     --nEpochs=10 \
-    --lr=0.0001 \
-    --use_face_loss=True \
+    --lr=0.00001 \
+    --use_face_loss \
     --FR_weight=0.5 \
     --snapshots=5 \
-    --threads=4
+    --threads=4 \
+    $ADAFACE_ARG
 
 # Step 3: Quick evaluation
 echo ""
