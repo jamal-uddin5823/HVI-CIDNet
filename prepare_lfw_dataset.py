@@ -37,87 +37,10 @@ import tarfile
 import shutil
 import random
 
-# Import low-light synthesis functions
-# (We'll inline them here for self-contained script)
-
-
-def srgb_to_linear(img: np.ndarray) -> np.ndarray:
-    """Convert sRGB to linear RGB"""
-    img = img.astype(np.float32)
-    linear = np.where(
-        img <= 0.04045,
-        img / 12.92,
-        np.power((img + 0.055) / 1.055, 2.4)
-    )
-    return linear
-
-
-def linear_to_srgb(img: np.ndarray) -> np.ndarray:
-    """Convert linear RGB to sRGB"""
-    img = img.astype(np.float32)
-    img = np.clip(img, 0, 1)
-    srgb = np.where(
-        img <= 0.0031308,
-        img * 12.92,
-        1.055 * np.power(img, 1.0 / 2.4) - 0.055
-    )
-    return srgb
-
-
-def synthesize_low_light(img_array, reduction_factor=0.1, noise_level='medium', seed=None):
-    """
-    Simplified low-light synthesis for face images
-
-    Args:
-        img_array: RGB image array in range [0, 1]
-        reduction_factor: Light reduction (0.05-0.2 typical)
-        noise_level: 'low', 'medium', 'high'
-        seed: Random seed
-    """
-    if seed is not None:
-        np.random.seed(seed)
-
-    # Noise parameters by level
-    noise_params = {
-        'low': (1.0, 0.005),
-        'medium': (1.5, 0.01),
-        'high': (2.0, 0.015)
-    }
-    shot_noise_scale, read_noise_std = noise_params.get(noise_level, noise_params['medium'])
-
-    # Convert to linear space
-    img_linear = srgb_to_linear(img_array)
-
-    # Reduce light
-    img_linear = img_linear * reduction_factor
-
-    # Add Poisson-Gaussian noise
-    scale = 255.0
-    gain = 2.0
-    img_scaled = img_linear * scale / gain
-    img_scaled = np.clip(img_scaled, 0, None)
-
-    # Shot noise (Poisson approximated with scaled version)
-    shot_noisy = np.random.poisson(img_scaled * shot_noise_scale).astype(np.float32) / shot_noise_scale
-    img_with_shot = shot_noisy * gain / scale
-
-    # Read noise (Gaussian)
-    read_noise = np.random.normal(0, read_noise_std, img_linear.shape).astype(np.float32)
-    img_noisy = img_with_shot + read_noise
-    img_noisy = np.clip(img_noisy, 0, 1)
-
-    # White balance variation (subtle for faces)
-    wb_r = np.random.uniform(0.9, 1.1)
-    wb_b = np.random.uniform(0.9, 1.1)
-    img_noisy[:, :, 0] *= wb_r
-    img_noisy[:, :, 2] *= wb_b
-    img_noisy = np.clip(img_noisy, 0, 1)
-
-    # Convert back to sRGB
-    img_srgb = linear_to_srgb(img_noisy)
-    img_srgb = np.clip(img_srgb, 0, 1)
-
-    return img_srgb
+# Import low-light synthesis module (full physics-based pipeline)
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'data'))
+from lowlight_synthesis import synthesize_low_light_image
 
 
 def download_lfw(data_dir='./datasets/LFW_original'):
@@ -175,6 +98,7 @@ def prepare_lfw_lowlight(
     test_ratio=0.15,
     min_images_per_person=2,
     max_images=None,
+    enable_blur=False,
     seed=42
 ):
     """
@@ -275,16 +199,37 @@ def prepare_lfw_lowlight(
                 high_path = os.path.join(output_dir, split_name, 'high', img_name)
                 img.save(high_path)
 
-                # Generate low-light version
+                # Generate low-light version using full physics-based synthesis
                 # Use varied parameters for diversity
                 reduction_factor = random.uniform(0.05, 0.15)
-                noise_level = random.choice(['low', 'medium', 'high'])
 
-                low_light_array = synthesize_low_light(
+                # Vary noise parameters
+                shot_noise = random.uniform(1.0, 2.0)
+                read_noise = random.uniform(0.005, 0.015)
+                gain = random.uniform(1.5, 3.0)
+                wb_variation = random.uniform(0.1, 0.2)
+
+                # Optional blur parameters (only used if enable_blur=True)
+                blur_sigma = random.uniform(0.3, 0.6) if enable_blur else 0.0
+
+                # Note: Blur is disabled by default for face recognition research
+                # Blur destroys facial identity features, making enhancement too hard
+                # Use --enable_blur flag for general low-light datasets
+                low_light_array = synthesize_low_light_image(
                     img_array,
+                    apply_light_reduction=True,
+                    apply_noise=True,
+                    apply_white_balance=True,
+                    apply_blur=enable_blur,  # Default: False (preserves identity)
                     reduction_factor=reduction_factor,
-                    noise_level=noise_level,
-                    seed=seed + idx
+                    shot_noise_scale=shot_noise,
+                    read_noise_std=read_noise,
+                    gain=gain,
+                    wb_variation=wb_variation,
+                    blur_sigma=blur_sigma,
+                    blur_type='gaussian',
+                    seed=seed + idx,
+                    output_format='numpy'
                 )
 
                 # Save low-light version
@@ -356,6 +301,8 @@ def main():
                        help='Minimum images per person')
     parser.add_argument('--max_images', type=int, default=None,
                        help='Maximum total images (for testing)')
+    parser.add_argument('--enable_blur', action='store_true',
+                       help='Enable blur in synthesis (NOT recommended for face recognition research)')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
 
@@ -377,6 +324,7 @@ def main():
         test_ratio=args.test_ratio,
         min_images_per_person=args.min_images,
         max_images=args.max_images,
+        enable_blur=args.enable_blur,
         seed=args.seed
     )
 
