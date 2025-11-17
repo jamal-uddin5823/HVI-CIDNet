@@ -63,7 +63,7 @@ def option():
     parser.add_argument('--P_weight',  type=float, default=1e-2)
 
     # Face Recognition Perceptual Loss (for thesis research)
-    parser.add_argument('--use_face_loss', type=bool, default=False, help='Enable face recognition perceptual loss')
+    parser.add_argument('--use_face_loss', action='store_true', help='Enable face recognition perceptual loss')
     parser.add_argument('--FR_weight', type=float, default=0.5, help='Face recognition loss weight')
     parser.add_argument('--FR_model_arch', type=str, default='ir_50', choices=['ir_50', 'ir_101'],
                         help='AdaFace architecture: ir_50 or ir_101')
@@ -83,13 +83,13 @@ def option():
     
     
     # choose which dataset you want to train, please only set one "True"
-    parser.add_argument('--lol_v1', type=bool, default=False)
-    parser.add_argument('--lolv2_real', type=bool, default=False)
-    parser.add_argument('--lolv2_syn', type=bool, default=False)
-    parser.add_argument('--lol_blur', type=bool, default=False)
-    parser.add_argument('--SID', type=bool, default=False)
-    parser.add_argument('--SICE_mix', type=bool, default=False)
-    parser.add_argument('--SICE_grad', type=bool, default=False)
-    parser.add_argument('--fivek', type=bool, default=False)
-    parser.add_argument('--lfw', type=bool, default=False, help='LFW with synthetic low-light (for face recognition loss)')
+    parser.add_argument('--lol_v1', action='store_true', help='Train on LOL v1 dataset')
+    parser.add_argument('--lolv2_real', action='store_true', help='Train on LOL v2 real dataset')
+    parser.add_argument('--lolv2_syn', action='store_true', help='Train on LOL v2 synthetic dataset')
+    parser.add_argument('--lol_blur', action='store_true', help='Train on LOL blur dataset')
+    parser.add_argument('--SID', action='store_true', help='Train on SID dataset')
+    parser.add_argument('--SICE_mix', action='store_true', help='Train on SICE mix dataset')
+    parser.add_argument('--SICE_grad', action='store_true', help='Train on SICE grad dataset')
+    parser.add_argument('--fivek', action='store_true', help='Train on FiveK dataset')
+    parser.add_argument('--lfw', action='store_true', help='Train on LFW with synthetic low-light (for face recognition loss)')
     return parser
