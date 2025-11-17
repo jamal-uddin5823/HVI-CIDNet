@@ -20,7 +20,7 @@ fi
 
 # Check for pretrained weights
 CIDNET_WEIGHTS="./weights/LOLv2_real/best_PSNR.pth"
-ADAFACE_WEIGHTS="./pretrained/adaface/adaface_ir50_webface4m.ckpt"
+ADAFACE_WEIGHTS="./weghts/adaface/adaface_ir50_webface4m.ckpt"
 
 if [ -f "$CIDNET_WEIGHTS" ]; then
     echo "✓ Fine-tuning from pretrained CIDNet: $CIDNET_WEIGHTS"

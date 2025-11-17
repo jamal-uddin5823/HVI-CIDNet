@@ -232,7 +232,7 @@ class FaceRecognitionPerceptualLoss(nn.Module):
         >>> # With custom weights path
         >>> face_loss = FaceRecognitionPerceptualLoss(
         ...     model_arch='ir_101',
-        ...     model_path='./pretrained/adaface_ir101_webface4m.ckpt',
+        ...     model_path='./weghts/adaface_ir101_webface4m.ckpt',
         ...     loss_weight=0.3,
         ...     feature_distance='cosine'
         ... )
