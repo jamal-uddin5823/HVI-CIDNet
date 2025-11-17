@@ -169,9 +169,17 @@ def load_datasets():
 def build_model():
     print('===> Building model ')
     model = CIDNet().cuda()
-    if opt.start_epoch > 0:
+
+    # Load pretrained weights if specified
+    if opt.pretrained_model is not None:
+        print(f'===> Loading pretrained CIDNet model from {opt.pretrained_model}')
+        model.load_state_dict(torch.load(opt.pretrained_model, map_location=lambda storage, loc: storage))
+        print('===> Pretrained model loaded successfully')
+    elif opt.start_epoch > 0:
         pth = f"./weights/train/epoch_{opt.start_epoch}.pth"
+        print(f'===> Resuming from epoch {opt.start_epoch}')
         model.load_state_dict(torch.load(pth, map_location=lambda storage, loc: storage))
+
     return model
 
 def make_scheduler():
