@@ -1,0 +1,388 @@
+"""
+LFW Dataset Preparation Script for Low-Light Face Recognition Research
+
+This script prepares the Labeled Faces in the Wild (LFW) dataset for training
+face recognition-aware low-light image enhancement models.
+
+It uses physics-based low-light synthesis to create realistic low-light versions
+of LFW face images, enabling supervised training without requiring real low-light
+face data collection.
+
+Dataset Structure:
+    datasets/LFW_lowlight/
+    ├── train/
+    │   ├── low/      # Synthetic low-light faces
+    │   └── high/     # Original faces (ground truth)
+    ├── val/
+    │   ├── low/
+    │   └── high/
+    └── test/
+        ├── low/
+        └── high/
+
+Usage:
+    python prepare_lfw_dataset.py --download  # Download and process LFW
+    python prepare_lfw_dataset.py             # Process existing LFW dataset
+"""
+
+import os
+import sys
+import argparse
+import numpy as np
+from PIL import Image
+from pathlib import Path
+from tqdm import tqdm
+import urllib.request
+import tarfile
+import shutil
+import random
+
+# Import low-light synthesis functions
+# (We'll inline them here for self-contained script)
+
+
+def srgb_to_linear(img: np.ndarray) -> np.ndarray:
+    """Convert sRGB to linear RGB"""
+    img = img.astype(np.float32)
+    linear = np.where(
+        img <= 0.04045,
+        img / 12.92,
+        np.power((img + 0.055) / 1.055, 2.4)
+    )
+    return linear
+
+
+def linear_to_srgb(img: np.ndarray) -> np.ndarray:
+    """Convert linear RGB to sRGB"""
+    img = img.astype(np.float32)
+    img = np.clip(img, 0, 1)
+    srgb = np.where(
+        img <= 0.0031308,
+        img * 12.92,
+        1.055 * np.power(img, 1.0 / 2.4) - 0.055
+    )
+    return srgb
+
+
+def synthesize_low_light(img_array, reduction_factor=0.1, noise_level='medium', seed=None):
+    """
+    Simplified low-light synthesis for face images
+
+    Args:
+        img_array: RGB image array in range [0, 1]
+        reduction_factor: Light reduction (0.05-0.2 typical)
+        noise_level: 'low', 'medium', 'high'
+        seed: Random seed
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    # Noise parameters by level
+    noise_params = {
+        'low': (1.0, 0.005),
+        'medium': (1.5, 0.01),
+        'high': (2.0, 0.015)
+    }
+    shot_noise_scale, read_noise_std = noise_params.get(noise_level, noise_params['medium'])
+
+    # Convert to linear space
+    img_linear = srgb_to_linear(img_array)
+
+    # Reduce light
+    img_linear = img_linear * reduction_factor
+
+    # Add Poisson-Gaussian noise
+    scale = 255.0
+    gain = 2.0
+    img_scaled = img_linear * scale / gain
+    img_scaled = np.clip(img_scaled, 0, None)
+
+    # Shot noise (Poisson approximated with scaled version)
+    shot_noisy = np.random.poisson(img_scaled * shot_noise_scale).astype(np.float32) / shot_noise_scale
+    img_with_shot = shot_noisy * gain / scale
+
+    # Read noise (Gaussian)
+    read_noise = np.random.normal(0, read_noise_std, img_linear.shape).astype(np.float32)
+    img_noisy = img_with_shot + read_noise
+    img_noisy = np.clip(img_noisy, 0, 1)
+
+    # White balance variation (subtle for faces)
+    wb_r = np.random.uniform(0.9, 1.1)
+    wb_b = np.random.uniform(0.9, 1.1)
+    img_noisy[:, :, 0] *= wb_r
+    img_noisy[:, :, 2] *= wb_b
+    img_noisy = np.clip(img_noisy, 0, 1)
+
+    # Convert back to sRGB
+    img_srgb = linear_to_srgb(img_noisy)
+    img_srgb = np.clip(img_srgb, 0, 1)
+
+    return img_srgb
+
+
+def download_lfw(data_dir='./datasets/LFW_original'):
+    """
+    Download LFW dataset (aligned, funneled version)
+    """
+    os.makedirs(data_dir, exist_ok=True)
+
+    # LFW download URLs
+    lfw_url = 'http://vis-www.cs.umass.edu/lfw/lfw.tgz'
+
+    print(f"[1/3] Downloading LFW dataset...")
+    print(f"  URL: {lfw_url}")
+    print(f"  This may take several minutes...")
+
+    tar_path = os.path.join(data_dir, 'lfw.tgz')
+
+    # Download with progress bar
+    def progress_hook(count, block_size, total_size):
+        percent = int(count * block_size * 100 / total_size)
+        sys.stdout.write(f"\r  Progress: {percent}%")
+        sys.stdout.flush()
+
+    try:
+        urllib.request.urlretrieve(lfw_url, tar_path, reporthook=progress_hook)
+        print("\n  Download complete!")
+    except Exception as e:
+        print(f"\n  Error downloading: {e}")
+        print("  Please download manually from:")
+        print(f"    {lfw_url}")
+        print(f"  and extract to: {data_dir}")
+        return False
+
+    print(f"[2/3] Extracting dataset...")
+    try:
+        with tarfile.open(tar_path, 'r:gz') as tar:
+            tar.extractall(data_dir)
+        print("  Extraction complete!")
+    except Exception as e:
+        print(f"  Error extracting: {e}")
+        return False
+
+    # Clean up tar file
+    os.remove(tar_path)
+
+    print(f"[3/3] Dataset ready at: {data_dir}/lfw")
+    return True
+
+
+def prepare_lfw_lowlight(
+    lfw_dir='./datasets/LFW_original/lfw',
+    output_dir='./datasets/LFW_lowlight',
+    train_ratio=0.7,
+    val_ratio=0.15,
+    test_ratio=0.15,
+    min_images_per_person=2,
+    max_images=None,
+    seed=42
+):
+    """
+    Prepare LFW dataset with synthetic low-light versions
+
+    Args:
+        lfw_dir: Path to original LFW dataset
+        output_dir: Output directory for processed dataset
+        train_ratio: Fraction of data for training
+        val_ratio: Fraction for validation
+        test_ratio: Fraction for testing
+        min_images_per_person: Minimum images per person to include
+        max_images: Maximum total images (for quick testing), None = all
+        seed: Random seed for reproducibility
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+
+    print("="*70)
+    print("LFW Low-Light Dataset Preparation")
+    print("="*70)
+
+    # Check if LFW directory exists
+    if not os.path.exists(lfw_dir):
+        print(f"Error: LFW directory not found: {lfw_dir}")
+        print("Run with --download to download LFW dataset first")
+        return False
+
+    # Collect all image paths
+    print("\n[Step 1/5] Scanning LFW directory...")
+    all_images = []
+    person_dirs = sorted([d for d in os.listdir(lfw_dir)
+                         if os.path.isdir(os.path.join(lfw_dir, d))])
+
+    for person_name in person_dirs:
+        person_dir = os.path.join(lfw_dir, person_name)
+        images = sorted([f for f in os.listdir(person_dir)
+                        if f.endswith(('.jpg', '.png'))])
+
+        # Filter by minimum images per person
+        if len(images) >= min_images_per_person:
+            for img_name in images:
+                all_images.append(os.path.join(person_dir, img_name))
+
+    print(f"  Found {len(all_images)} images from {len(person_dirs)} people")
+
+    # Limit dataset size if specified
+    if max_images is not None and len(all_images) > max_images:
+        print(f"  Limiting to {max_images} images (for quick testing)")
+        random.shuffle(all_images)
+        all_images = all_images[:max_images]
+
+    # Split into train/val/test
+    print("\n[Step 2/5] Splitting dataset...")
+    random.shuffle(all_images)
+
+    n_total = len(all_images)
+    n_train = int(n_total * train_ratio)
+    n_val = int(n_total * val_ratio)
+
+    train_images = all_images[:n_train]
+    val_images = all_images[n_train:n_train + n_val]
+    test_images = all_images[n_train + n_val:]
+
+    print(f"  Train: {len(train_images)} images ({train_ratio*100:.0f}%)")
+    print(f"  Val:   {len(val_images)} images ({val_ratio*100:.0f}%)")
+    print(f"  Test:  {len(test_images)} images ({test_ratio*100:.0f}%)")
+
+    # Create output directories
+    print("\n[Step 3/5] Creating output directories...")
+    splits = {
+        'train': train_images,
+        'val': val_images,
+        'test': test_images
+    }
+
+    for split_name in splits.keys():
+        os.makedirs(os.path.join(output_dir, split_name, 'low'), exist_ok=True)
+        os.makedirs(os.path.join(output_dir, split_name, 'high'), exist_ok=True)
+
+    # Process images
+    print("\n[Step 4/5] Generating synthetic low-light images...")
+    print("  This may take several minutes...")
+
+    for split_name, image_list in splits.items():
+        print(f"\n  Processing {split_name} set ({len(image_list)} images)...")
+
+        for idx, img_path in enumerate(tqdm(image_list, desc=f"  {split_name}")):
+            try:
+                # Load image
+                img = Image.open(img_path).convert('RGB')
+                img_array = np.array(img).astype(np.float32) / 255.0
+
+                # Generate filename (use index to avoid conflicts)
+                img_name = f"{split_name}_{idx:05d}.png"
+
+                # Save high-quality version (ground truth)
+                high_path = os.path.join(output_dir, split_name, 'high', img_name)
+                img.save(high_path)
+
+                # Generate low-light version
+                # Use varied parameters for diversity
+                reduction_factor = random.uniform(0.05, 0.15)
+                noise_level = random.choice(['low', 'medium', 'high'])
+
+                low_light_array = synthesize_low_light(
+                    img_array,
+                    reduction_factor=reduction_factor,
+                    noise_level=noise_level,
+                    seed=seed + idx
+                )
+
+                # Save low-light version
+                low_light_img = (low_light_array * 255).astype(np.uint8)
+                low_path = os.path.join(output_dir, split_name, 'low', img_name)
+                Image.fromarray(low_light_img).save(low_path)
+
+            except Exception as e:
+                print(f"    Error processing {img_path}: {e}")
+                continue
+
+    # Generate dataset statistics
+    print("\n[Step 5/5] Generating dataset statistics...")
+    stats_file = os.path.join(output_dir, 'dataset_stats.txt')
+    with open(stats_file, 'w') as f:
+        f.write("LFW Low-Light Dataset Statistics\n")
+        f.write("="*70 + "\n\n")
+        f.write(f"Source: {lfw_dir}\n")
+        f.write(f"Output: {output_dir}\n\n")
+        f.write(f"Total images: {len(all_images)}\n")
+        f.write(f"  Train: {len(train_images)} ({train_ratio*100:.1f}%)\n")
+        f.write(f"  Val:   {len(val_images)} ({val_ratio*100:.1f}%)\n")
+        f.write(f"  Test:  {len(test_images)} ({test_ratio*100:.1f}%)\n\n")
+        f.write("Low-light synthesis parameters:\n")
+        f.write("  Reduction factor: 0.05 - 0.15 (random per image)\n")
+        f.write("  Noise level: low/medium/high (random per image)\n")
+        f.write("  Physics-based: Poisson-Gaussian sensor noise\n")
+        f.write("  White balance variation: ±10%\n")
+
+    print(f"\n  Statistics saved to: {stats_file}")
+
+    print("\n" + "="*70)
+    print("Dataset preparation complete!")
+    print("="*70)
+    print(f"\nDataset location: {output_dir}")
+    print("\nDirectory structure:")
+    print("  LFW_lowlight/")
+    print("  ├── train/")
+    print("  │   ├── low/   (synthetic low-light)")
+    print("  │   └── high/  (ground truth)")
+    print("  ├── val/")
+    print("  │   ├── low/")
+    print("  │   └── high/")
+    print("  └── test/")
+    print("      ├── low/")
+    print("      └── high/")
+    print("\nYou can now train with: --lfw=True --data_train_lfw=./datasets/LFW_lowlight/train")
+
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Prepare LFW dataset with synthetic low-light images'
+    )
+    parser.add_argument('--download', action='store_true',
+                       help='Download LFW dataset first')
+    parser.add_argument('--lfw_dir', type=str, default='./datasets/LFW_original/lfw',
+                       help='Path to original LFW dataset')
+    parser.add_argument('--output_dir', type=str, default='./datasets/LFW_lowlight',
+                       help='Output directory for processed dataset')
+    parser.add_argument('--train_ratio', type=float, default=0.7,
+                       help='Training set ratio')
+    parser.add_argument('--val_ratio', type=float, default=0.15,
+                       help='Validation set ratio')
+    parser.add_argument('--test_ratio', type=float, default=0.15,
+                       help='Test set ratio')
+    parser.add_argument('--min_images', type=int, default=2,
+                       help='Minimum images per person')
+    parser.add_argument('--max_images', type=int, default=None,
+                       help='Maximum total images (for testing)')
+    parser.add_argument('--seed', type=int, default=42,
+                       help='Random seed')
+
+    args = parser.parse_args()
+
+    # Download if requested
+    if args.download:
+        download_dir = os.path.dirname(args.lfw_dir)
+        success = download_lfw(download_dir)
+        if not success:
+            return
+
+    # Prepare dataset
+    success = prepare_lfw_lowlight(
+        lfw_dir=args.lfw_dir,
+        output_dir=args.output_dir,
+        train_ratio=args.train_ratio,
+        val_ratio=args.val_ratio,
+        test_ratio=args.test_ratio,
+        min_images_per_person=args.min_images,
+        max_images=args.max_images,
+        seed=args.seed
+    )
+
+    if not success:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

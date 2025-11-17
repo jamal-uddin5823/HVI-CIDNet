@@ -61,7 +61,14 @@ def train(epoch):
         gt_hvi = model.HVIT(gt_rgb)
         loss_hvi = L1_loss(output_hvi, gt_hvi) + D_loss(output_hvi, gt_hvi) + E_loss(output_hvi, gt_hvi) + opt.P_weight * P_loss(output_hvi, gt_hvi)[0]
         loss_rgb = L1_loss(output_rgb, gt_rgb) + D_loss(output_rgb, gt_rgb) + E_loss(output_rgb, gt_rgb) + opt.P_weight * P_loss(output_rgb, gt_rgb)[0]
-        loss = loss_rgb + opt.HVI_weight * loss_hvi
+
+        # Add Face Recognition Perceptual Loss if enabled
+        if opt.use_face_loss and FR_loss is not None:
+            fr_loss_value = FR_loss(output_rgb, gt_rgb)
+            loss = loss_rgb + opt.HVI_weight * loss_hvi + fr_loss_value
+        else:
+            loss = loss_rgb + opt.HVI_weight * loss_hvi
+
         iter += 1
         
         if opt.grad_clip:
@@ -101,7 +108,7 @@ def checkpoint(epoch):
     
 def load_datasets():
     print('===> Loading datasets')
-    if opt.lol_v1 or opt.lol_blur or opt.lolv2_real or opt.lolv2_syn or opt.SID or opt.SICE_mix or opt.SICE_grad or opt.fivek:
+    if opt.lol_v1 or opt.lol_blur or opt.lolv2_real or opt.lolv2_syn or opt.SID or opt.SICE_mix or opt.SICE_grad or opt.fivek or opt.lfw:
         if opt.lol_v1:
             train_set = get_lol_training_set(opt.data_train_lol_v1,size=opt.cropSize)
             training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=opt.shuffle)
@@ -149,6 +156,12 @@ def load_datasets():
             training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=opt.shuffle)
             test_set = get_fivek_eval_set(opt.data_val_fivek)
             testing_data_loader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=1, shuffle=False)
+
+        if opt.lfw:
+            train_set = get_lfw_training_set(opt.data_train_lfw, size=opt.cropSize)
+            training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=opt.shuffle)
+            test_set = get_eval_set(opt.data_val_lfw)
+            testing_data_loader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=1, shuffle=False)
     else:
         raise Exception("should choose a dataset")
     return training_data_loader, testing_data_loader
@@ -181,15 +194,28 @@ def make_scheduler():
 
 def init_loss():
     L1_weight   = opt.L1_weight
-    D_weight    = opt.D_weight 
-    E_weight    = opt.E_weight 
+    D_weight    = opt.D_weight
+    E_weight    = opt.E_weight
     P_weight    = 1.0
-    
+
     L1_loss= L1Loss(loss_weight=L1_weight, reduction='mean').cuda()
     D_loss = SSIM(weight=D_weight).cuda()
     E_loss = EdgeLoss(loss_weight=E_weight).cuda()
     P_loss = PerceptualLoss({'conv1_2': 1, 'conv2_2': 1,'conv3_4': 1,'conv4_4': 1}, perceptual_weight = P_weight ,criterion='mse').cuda()
-    return L1_loss,P_loss,E_loss,D_loss
+
+    # Face Recognition Perceptual Loss (optional, for face-specific enhancement)
+    FR_loss = None
+    if opt.use_face_loss:
+        print("===> Initializing Face Recognition Perceptual Loss")
+        FR_loss = FaceRecognitionPerceptualLoss(
+            model_arch=opt.FR_model_arch,
+            model_path=opt.FR_model_path,
+            loss_weight=opt.FR_weight,
+            feature_distance=opt.FR_feature_distance
+        ).cuda()
+        print(f"===> Face Recognition Loss enabled with weight={opt.FR_weight}")
+
+    return L1_loss, P_loss, E_loss, D_loss, FR_loss
 
 if __name__ == '__main__':  
     
@@ -200,7 +226,7 @@ if __name__ == '__main__':
     training_data_loader, testing_data_loader = load_datasets()
     model = build_model()
     optimizer,scheduler = make_scheduler()
-    L1_loss,P_loss,E_loss,D_loss = init_loss()
+    L1_loss, P_loss, E_loss, D_loss, FR_loss = init_loss()
     
     '''
     train
@@ -256,6 +282,11 @@ if __name__ == '__main__':
                 label_dir = opt.data_valgt_fivek
                 norm_size = False
 
+            if opt.lfw:
+                output_folder = 'lfw/'
+                label_dir = opt.data_valgt_lfw
+                norm_size = True
+
             im_dir = opt.val_folder + output_folder + '*.png'
             eval(model, testing_data_loader, model_out_path, opt.val_folder+output_folder, 
                  norm_size=norm_size, LOL=opt.lol_v1, v2=opt.lolv2_real, alpha=0.8)
@@ -274,17 +305,21 @@ if __name__ == '__main__':
     
     now = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     with open(f"./results/training/metrics{now}.md", "w") as f:
-        f.write("dataset: "+ output_folder + "\n")  
-        f.write(f"lr: {opt.lr}\n")  
-        f.write(f"batch size: {opt.batchSize}\n")  
-        f.write(f"crop size: {opt.cropSize}\n")  
-        f.write(f"HVI_weight: {opt.HVI_weight}\n")  
-        f.write(f"L1_weight: {opt.L1_weight}\n")  
-        f.write(f"D_weight: {opt.D_weight}\n")  
-        f.write(f"E_weight: {opt.E_weight}\n")  
-        f.write(f"P_weight: {opt.P_weight}\n")  
-        f.write("| Epochs | PSNR | SSIM | LPIPS |\n")  
-        f.write("|----------------------|----------------------|----------------------|----------------------|\n")  
+        f.write("dataset: "+ output_folder + "\n")
+        f.write(f"lr: {opt.lr}\n")
+        f.write(f"batch size: {opt.batchSize}\n")
+        f.write(f"crop size: {opt.cropSize}\n")
+        f.write(f"HVI_weight: {opt.HVI_weight}\n")
+        f.write(f"L1_weight: {opt.L1_weight}\n")
+        f.write(f"D_weight: {opt.D_weight}\n")
+        f.write(f"E_weight: {opt.E_weight}\n")
+        f.write(f"P_weight: {opt.P_weight}\n")
+        if opt.use_face_loss:
+            f.write(f"FR_weight: {opt.FR_weight}\n")
+            f.write(f"FR_model: {opt.FR_model_arch}\n")
+            f.write(f"FR_distance: {opt.FR_feature_distance}\n")
+        f.write("| Epochs | PSNR | SSIM | LPIPS |\n")
+        f.write("|----------------------|----------------------|----------------------|----------------------|\n")
         for i in range(len(psnr)):
             f.write(f"| {opt.start_epoch+(i+1)*opt.snapshots} | { psnr[i]:.4f} | {ssim[i]:.4f} | {lpips[i]:.4f} |\n")  
         
