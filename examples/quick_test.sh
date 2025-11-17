@@ -58,18 +58,27 @@ python train.py \
     --threads=4 \
     $ADAFACE_ARG
 
-# Step 3: Quick evaluation
+# Step 3: Quick evaluation (Face Recognition Metrics!)
 echo ""
-echo "[3/3] Running quick evaluation (100 pairs)..."
+echo "[3/3] Running face verification evaluation (100 pairs)..."
+echo "This is the KEY METRIC for your thesis!"
 echo ""
 
 LATEST_MODEL=$(ls -t ./weights/train/*.pth | head -1)
 
 if [ -f "$LATEST_MODEL" ]; then
-    python eval_face_verification.py \
-        --model=$LATEST_MODEL \
-        --test_dir=./datasets/LFW_small/test \
-        --max_pairs=100
+    if [ -f "$ADAFACE_WEIGHTS" ]; then
+        python eval_face_verification.py \
+            --model=$LATEST_MODEL \
+            --test_dir=./datasets/LFW_small/test \
+            --face_weights=$ADAFACE_WEIGHTS \
+            --face_model=ir_50 \
+            --max_pairs=100 \
+            --output_dir=./results/quick_test_face_verification
+    else
+        echo "⚠ AdaFace weights not found. Running without face verification metrics."
+        echo "  Download from: https://github.com/mk-minchul/AdaFace/releases"
+    fi
 else
     echo "⚠ No model found in ./weights/train/"
 fi
@@ -79,8 +88,12 @@ echo "========================================================================"
 echo "Quick test complete!"
 echo "========================================================================"
 echo ""
+echo "Results:"
+echo "  - Enhanced images: ./results/lfw/"
+echo "  - Face verification metrics: ./results/quick_test_face_verification/"
+echo ""
 echo "Next steps:"
-echo "1. Review results in: ./results/"
+echo "1. Review face similarity improvements in: ./results/quick_test_face_verification/"
 echo "2. If everything looks good, run full training with:"
 echo "   bash examples/train_with_face_loss.sh"
 echo ""

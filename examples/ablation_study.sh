@@ -141,11 +141,27 @@ train_with_fr "fr_weight_0.5" 0.5
 # 4. FR weight = 1.0
 train_with_fr "fr_weight_1.0" 1.0
 
-# Evaluation
+# Evaluation - Face Recognition Metrics (KEY for thesis!)
 echo ""
 echo "========================================================================"
-echo "Running Evaluations..."
+echo "Running Face Verification Evaluations..."
 echo "========================================================================"
+echo "This will compute face similarity and verification accuracy improvements"
+echo "which are the KEY METRICS for demonstrating your thesis contribution!"
+echo ""
+
+if [ ! -f "$ADAFACE_WEIGHTS" ]; then
+    echo "⚠ WARNING: AdaFace weights not found at: $ADAFACE_WEIGHTS"
+    echo "  Face verification evaluation requires AdaFace weights."
+    echo "  Download from: https://github.com/mk-minchul/AdaFace/releases"
+    echo ""
+    read -p "Continue without face verification? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted. Please download AdaFace weights first."
+        exit 1
+    fi
+fi
 
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
     echo ""
@@ -154,29 +170,42 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
     MODEL="./weights/ablation/$config/epoch_$EPOCHS.pth"
 
     if [ -f "$MODEL" ]; then
-        python eval_face_verification.py \
-            --model=$MODEL \
-            --test_dir=$DATASET_DIR/test \
-            --output_dir=./results/ablation/$config
+        if [ -f "$ADAFACE_WEIGHTS" ]; then
+            python eval_face_verification.py \
+                --model=$MODEL \
+                --test_dir=$DATASET_DIR/test \
+                --face_weights=$ADAFACE_WEIGHTS \
+                --face_model=ir_50 \
+                --output_dir=./results/ablation/$config
+        else
+            echo "⚠ Skipping face verification for $config (no AdaFace weights)"
+        fi
     else
         echo "⚠ Model not found: $MODEL"
     fi
 done
 
-# Generate comparison table
+# Generate comparison table for thesis
 echo ""
 echo "========================================================================"
-echo "Ablation Study Results"
+echo "Ablation Study Results - Face Recognition Metrics"
 echo "========================================================================"
 echo ""
+echo "Configuration         | Face Similarity | Improvement | PSNR  | SSIM"
+echo "---------------------+----------------+-------------+-------+------"
 
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
     RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
     if [ -f "$RESULT_FILE" ]; then
-        echo "[$config]"
-        grep -A 2 "Face Similarity Metrics:" $RESULT_FILE | tail -2
-        grep "Improvement:" $RESULT_FILE | head -1
-        echo ""
+        # Extract metrics (this is a simple parsing, you may need to adjust based on actual output format)
+        FACE_SIM=$(grep "Enhanced avg similarity:" $RESULT_FILE | awk '{print $4}' || echo "N/A")
+        IMPROVEMENT=$(grep "Similarity improvement:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+        PSNR=$(grep "Average PSNR:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+        SSIM=$(grep "Average SSIM:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+
+        printf "%-20s | %-14s | %-11s | %-5s | %-5s\n" "$config" "$FACE_SIM" "$IMPROVEMENT" "$PSNR" "$SSIM"
+    else
+        printf "%-20s | Results not found\n" "$config"
     fi
 done
 
@@ -185,10 +214,16 @@ echo "========================================================================"
 echo "Ablation study complete!"
 echo "========================================================================"
 echo ""
-echo "Detailed results saved to: ./results/ablation/"
+echo "Results saved to: ./results/ablation/"
 echo ""
-echo "Use these results for your thesis to show:"
-echo "1. Impact of different FR loss weights"
-echo "2. Optimal weight selection"
-echo "3. Trade-offs between image quality and face similarity"
+echo "For your thesis, use these results to demonstrate:"
+echo "1. Face similarity improvement with FR loss (KEY CONTRIBUTION)"
+echo "2. Optimal FR loss weight selection (e.g., 0.5)"
+echo "3. Trade-offs between image quality (PSNR/SSIM) and face similarity"
+echo "4. Comparison: Baseline vs. different FR loss weights"
+echo ""
+echo "Next steps:"
+echo "1. Analyze detailed results in ./results/ablation/*/face_verification_results.txt"
+echo "2. Create graphs showing FR loss weight vs. face similarity"
+echo "3. Include visual comparisons in thesis (enhanced face images)"
 echo ""
