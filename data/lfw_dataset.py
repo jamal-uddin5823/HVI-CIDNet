@@ -162,28 +162,29 @@ class LFWDatasetFromFolderEval(data.Dataset):
         print(f"[LFW Eval Dataset] Loaded {self.num_images} image pairs from {data_dir}")
 
     def __getitem__(self, index):
-        """Get a pair of low-light and ground truth images
+        """Get a low-light image for evaluation
+
+        For evaluation, we only need the low-light image and its filename.
+        Ground truth is stored separately and used for metrics computation.
 
         Args:
-            index (int): Index of the image pair
+            index (int): Index of the image
 
         Returns:
-            tuple: (low_light_img, gt_img, low_filename, gt_filename)
+            tuple: (low_light_img, filename)
         """
-        # Get file paths
+        # Get file path
         low_path = join(self.low_folder, self.low_filenames[index])
-        high_path = join(self.high_folder, self.high_filenames[index])
 
-        # Load images
+        # Load image
         im_low = load_img(low_path)
-        im_high = load_img(high_path)
 
-        # Apply transforms (no data augmentation, just ToTensor)
+        # Apply transforms (no data augmentation, just resize + ToTensor)
         if self.transform:
             im_low = self.transform(im_low)
-            im_high = self.transform(im_high)
 
-        return im_low, im_high, self.low_filenames[index], self.high_filenames[index]
+        # Return only input and filename (matching standard eval dataset format)
+        return im_low, self.low_filenames[index]
 
     def __len__(self):
         """Return the number of image pairs"""
