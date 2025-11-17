@@ -47,7 +47,7 @@ mkdir -p pretrained/adaface
 # Download AdaFace IR-50 weights (WebFace4M)
 # Visit: https://github.com/mk-minchul/AdaFace
 # Download: adaface_ir50_webface4m.ckpt
-# Place in: ./weghts/adaface/adaface_ir50_webface4m.ckpt
+# Place in: ./weights/adaface/adaface_ir50_webface4m.ckpt
 ```
 
 ---
@@ -174,7 +174,7 @@ python train.py \
     --use_face_loss \
     --FR_weight=0.5 \
     --FR_model_arch=ir_50 \
-    --FR_model_path=./weghts/adaface/adaface_ir50_webface4m.ckpt \
+    --FR_model_path=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --FR_feature_distance=mse
 
 # Note: If you don't have AdaFace weights, omit --FR_model_path
@@ -197,7 +197,7 @@ python train.py \
     --lr=0.00001 \
     --use_face_loss \
     --FR_weight=0.5 \
-    --FR_model_path=./weghts/adaface/adaface_ir50_webface4m.ckpt
+    --FR_model_path=./weights/adaface/adaface_ir50_webface4m.ckpt
 
 # Benefits:
 # - Faster convergence (already trained on low-light)
@@ -249,7 +249,7 @@ python train.py \
     --nEpochs=10 \
     --use_face_loss \
     --FR_weight=0.5 \
-    --FR_model_path=./weghts/adaface/adaface_ir50_webface4m.ckpt
+    --FR_model_path=./weights/adaface/adaface_ir50_webface4m.ckpt
 
 # Note: LFW images are typically small (125x94), so they are automatically
 # resized to 288x288 before cropping to 256x256 during training
@@ -297,7 +297,7 @@ python eval_face_verification.py \
     --model=./weights/train/epoch_100.pth \
     --test_dir=./datasets/LFW_lowlight/test \
     --face_model=ir_50 \
-    --face_weights=./weghts/adaface/adaface_ir50_webface4m.ckpt \
+    --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --output_dir=./results/face_verification
 
 # Quick evaluation (100 pairs only)
@@ -415,7 +415,7 @@ Based on the "Minimum Viable Research" approach:
 # If AdaFace weights fail to load, the model automatically falls back to ResNet50
 
 # Check if weights file exists:
-ls -lh ./weghts/adaface/adaface_ir50_webface4m.ckpt
+ls -lh ./weights/adaface/adaface_ir50_webface4m.ckpt
 
 # If not, train without pre-trained weights (less accurate but works):
 python train.py ... --FR_model_path=None
@@ -489,7 +489,7 @@ python train.py \
     --pretrained_model=./weights/LOLv2_real/best_PSNR.pth \
     --use_face_loss \
     --FR_weight=0.5 \
-    --FR_model_path=./weghts/adaface/adaface_ir50_webface4m.ckpt \
+    --FR_model_path=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --nEpochs=50 \
     --lr=0.00001
 
@@ -546,7 +546,7 @@ pip install --force-reinstall "numpy<2.0,>=1.22"
 ```bash
 # Download from: https://github.com/mk-minchul/AdaFace/releases
 # Then use:
---FR_model_path=./weghts/adaface/adaface_ir50_webface4m.ckpt
+--FR_model_path=./weights/adaface/adaface_ir50_webface4m.ckpt
 ```
 
 ---

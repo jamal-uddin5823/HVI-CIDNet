@@ -7,7 +7,7 @@ echo "Training with Face Recognition Perceptual Loss (Fine-tuning)"
 echo "========================================================================"
 
 # Check if AdaFace weights exist
-ADAFACE_WEIGHTS="./weghts/adaface/adaface_ir50_webface4m.ckpt"
+ADAFACE_WEIGHTS="./weights/adaface/adaface_ir50_webface4m.ckpt"
 CIDNET_WEIGHTS="./weights/LOLv2_real/best_PSNR.pth"
 
 if [ -f "$ADAFACE_WEIGHTS" ]; then
