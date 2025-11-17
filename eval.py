@@ -34,8 +34,6 @@ eval_parser.add_argument('--alpha', type=float, default=1.0)
 eval_parser.add_argument('--gamma', type=float, default=1.0)
 eval_parser.add_argument('--unpaired_weights', type=str, default='./weights/LOLv2_syn/w_perc.pth')
 
-ep = eval_parser.parse_args()
-
 
 def eval(model, testing_data_loader, model_path, output_folder,norm_size=True,LOL=False,v2=False,unpaired=False,alpha=1.0,gamma=1.0):
     torch.set_grad_enabled(False)
@@ -79,7 +77,9 @@ def eval(model, testing_data_loader, model_path, output_folder,norm_size=True,LO
     torch.set_grad_enabled(True)
     
 if __name__ == '__main__':
-    
+
+    ep = eval_parser.parse_args()
+
     cuda = True
     if cuda and not torch.cuda.is_available():
         raise Exception("No GPU found, or need to change CUDA_VISIBLE_DEVICES number")
