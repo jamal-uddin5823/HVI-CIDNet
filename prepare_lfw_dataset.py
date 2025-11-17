@@ -43,50 +43,146 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'data'))
 from lowlight_synthesis import synthesize_low_light_image
 
 
-def download_lfw(data_dir='./datasets/LFW_original'):
+def download_lfw(data_dir='./datasets/LFW_original', min_faces_per_person=2):
     """
-    Download LFW dataset (aligned, funneled version)
+    Download LFW dataset using scikit-learn (most reliable method!)
+
+    This uses sklearn.datasets.fetch_lfw_people which:
+    - Handles downloading automatically with retry logic
+    - Provides properly aligned faces (better than raw LFW)
+    - Works reliably even behind firewalls
+    - Caches downloads automatically in ~/.scikit_learn_data
+    - Falls back to manual download if sklearn unavailable
+
+    Args:
+        data_dir: Directory to save organized LFW dataset
+        min_faces_per_person: Minimum images per person (default: 2)
+
+    Returns:
+        bool: True if successful, False otherwise
     """
+    try:
+        from sklearn.datasets import fetch_lfw_people
+        use_sklearn = True
+    except ImportError:
+        print("⚠ Warning: scikit-learn not found")
+        print("  Install with: pip install scikit-learn")
+        print("  Falling back to manual download...")
+        use_sklearn = False
+
+    if use_sklearn:
+        return _download_lfw_sklearn(data_dir, min_faces_per_person)
+    else:
+        return _download_lfw_manual(data_dir)
+
+
+def _download_lfw_sklearn(data_dir='./datasets/LFW_original', min_faces_per_person=2):
+    """Download LFW using scikit-learn (preferred method)"""
+    from sklearn.datasets import fetch_lfw_people
+
+    print(f"[1/2] Downloading LFW dataset using scikit-learn...")
+    print(f"  ✓ Reliable download with automatic retry")
+    print(f"  ✓ Properly aligned faces included")
+    print(f"  ✓ This may take a few minutes on first run...")
+
+    try:
+        # Download using sklearn (downloads to ~/scikit_learn_data by default)
+        lfw_people = fetch_lfw_people(
+            min_faces_per_person=min_faces_per_person,
+            resize=1.0,  # Keep original size (~250x250)
+            color=True,  # RGB images
+            download_if_missing=True
+        )
+
+        print(f"\n  ✓ Downloaded {len(lfw_people.images)} images")
+        print(f"  ✓ {len(lfw_people.target_names)} unique people")
+        print(f"  ✓ Image shape: {lfw_people.images[0].shape}")
+
+    except Exception as e:
+        print(f"\n  ✗ Error downloading with sklearn: {e}")
+        print("  Trying manual download method...")
+        return _download_lfw_manual(data_dir)
+
+    # Organize into directory structure expected by prepare_lfw_lowlight
+    print(f"\n[2/2] Organizing dataset into directory structure...")
+    lfw_dir = os.path.join(data_dir, 'lfw')
+    os.makedirs(lfw_dir, exist_ok=True)
+
+    # Group images by person
+    from collections import defaultdict
+    person_images = defaultdict(list)
+
+    for img, target in zip(lfw_people.images, lfw_people.target):
+        person_name = lfw_people.target_names[target]
+        person_images[person_name].append(img)
+
+    # Save images to disk
+    saved_count = 0
+    for person_name, images in tqdm(person_images.items(), desc="  Saving images"):
+        person_dir = os.path.join(lfw_dir, person_name.replace(' ', '_'))
+        os.makedirs(person_dir, exist_ok=True)
+
+        for idx, img in enumerate(images):
+            # Convert to PIL and save
+            img_uint8 = (img * 255).astype(np.uint8) if img.max() <= 1.0 else img.astype(np.uint8)
+            img_pil = Image.fromarray(img_uint8)
+
+            img_path = os.path.join(person_dir, f"{person_name.replace(' ', '_')}_{idx:04d}.jpg")
+            img_pil.save(img_path)
+            saved_count += 1
+
+    print(f"\n  ✓ Saved {saved_count} images to {lfw_dir}")
+    print(f"  ✓ Dataset ready for low-light synthesis!")
+
+    return True
+
+
+def _download_lfw_manual(data_dir='./datasets/LFW_original'):
+    """Fallback: Manual download method (if sklearn fails)"""
     os.makedirs(data_dir, exist_ok=True)
 
-    # LFW download URLs
-    lfw_url = 'http://vis-www.cs.umass.edu/lfw/lfw.tgz'
+    # LFW download URLs (try multiple mirrors)
+    lfw_urls = [
+        'http://vis-www.cs.umass.edu/lfw/lfw.tgz',
+        'https://ndownloader.figshare.com/files/5976018',  # Alternative mirror
+    ]
 
-    print(f"[1/3] Downloading LFW dataset...")
-    print(f"  URL: {lfw_url}")
-    print(f"  This may take several minutes...")
+    print(f"\n[Manual Download Method]")
+    print(f"  Attempting download from multiple mirrors...")
 
     tar_path = os.path.join(data_dir, 'lfw.tgz')
 
-    # Download with progress bar
-    def progress_hook(count, block_size, total_size):
-        percent = int(count * block_size * 100 / total_size)
-        sys.stdout.write(f"\r  Progress: {percent}%")
-        sys.stdout.flush()
+    # Try each URL
+    for idx, lfw_url in enumerate(lfw_urls):
+        print(f"\n  Trying mirror {idx+1}/{len(lfw_urls)}: {lfw_url}")
 
-    try:
-        urllib.request.urlretrieve(lfw_url, tar_path, reporthook=progress_hook)
-        print("\n  Download complete!")
-    except Exception as e:
-        print(f"\n  Error downloading: {e}")
-        print("  Please download manually from:")
-        print(f"    {lfw_url}")
-        print(f"  and extract to: {data_dir}")
-        return False
+        try:
+            urllib.request.urlretrieve(lfw_url, tar_path)
+            print("  ✓ Download complete!")
+            break
+        except Exception as e:
+            print(f"  ✗ Failed: {e}")
+            if idx == len(lfw_urls) - 1:
+                print("\n  ✗ All download attempts failed")
+                print("\n  Please download manually:")
+                print(f"    1. Visit: http://vis-www.cs.umass.edu/lfw/lfw.tgz")
+                print(f"    2. Save to: {tar_path}")
+                print(f"    3. Run: python prepare_lfw_dataset.py (without --download)")
+                return False
 
-    print(f"[2/3] Extracting dataset...")
+    print(f"\n  Extracting dataset...")
     try:
         with tarfile.open(tar_path, 'r:gz') as tar:
             tar.extractall(data_dir)
-        print("  Extraction complete!")
+        print("  ✓ Extraction complete!")
     except Exception as e:
-        print(f"  Error extracting: {e}")
+        print(f"  ✗ Error extracting: {e}")
         return False
 
     # Clean up tar file
     os.remove(tar_path)
 
-    print(f"[3/3] Dataset ready at: {data_dir}/lfw")
+    print(f"  ✓ Dataset ready at: {data_dir}/lfw")
     return True
 
 
