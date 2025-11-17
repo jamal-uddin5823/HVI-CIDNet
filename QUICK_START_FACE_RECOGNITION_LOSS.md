@@ -116,14 +116,26 @@ You can still use the face recognition loss with existing low-light datasets:
 
 ## 3. Training
 
+### Important: Command Syntax
+
+**Note:** Dataset and loss flags use `action='store_true'`, so use the flag name without `=True`:
+
+```bash
+# ✅ CORRECT:
+--lfw --use_face_loss
+
+# ❌ WRONG (will cause errors):
+--lfw=True --use_face_loss=True
+```
+
 ### Baseline Training (Without Face Recognition Loss)
 
 First, establish a baseline by training without the face recognition loss:
 
 ```bash
-# Train baseline on LFW
+# Train baseline on LFW (from scratch)
 python train.py \
-    --lfw=True \
+    --lfw \
     --data_train_lfw=./datasets/LFW_lowlight/train \
     --data_val_lfw=./datasets/LFW_lowlight/val \
     --data_valgt_lfw=./datasets/LFW_lowlight/val/high \
@@ -145,9 +157,9 @@ python train.py \
 Now train with the face recognition perceptual loss:
 
 ```bash
-# Train with Face Recognition Loss
+# Train with Face Recognition Loss from scratch
 python train.py \
-    --lfw=True \
+    --lfw \
     --data_train_lfw=./datasets/LFW_lowlight/train \
     --data_val_lfw=./datasets/LFW_lowlight/val \
     --data_valgt_lfw=./datasets/LFW_lowlight/val/high \
@@ -159,15 +171,47 @@ python train.py \
     --D_weight=0.5 \
     --E_weight=50.0 \
     --P_weight=0.01 \
-    --use_face_loss=True \
+    --use_face_loss \
     --FR_weight=0.5 \
     --FR_model_arch=ir_50 \
     --FR_model_path=./pretrained/adaface/adaface_ir50_webface4m.ckpt \
     --FR_feature_distance=mse
 
 # Note: If you don't have AdaFace weights, omit --FR_model_path
-# The model will use ResNet50 as a fallback feature extractor
+# The model will use randomly initialized weights (not recommended)
 ```
+
+### Fine-tuning from Pretrained CIDNet Weights (Recommended!)
+
+**Best approach for thesis:** Start from a strong baseline and fine-tune with FR loss:
+
+```bash
+# Fine-tune LOLv2 best_PSNR model with Face Recognition Loss on LFW
+python train.py \
+    --lfw \
+    --data_train_lfw=./datasets/LFW_lowlight/train \
+    --data_val_lfw=./datasets/LFW_lowlight/val \
+    --data_valgt_lfw=./datasets/LFW_lowlight/val/high \
+    --pretrained_model=./weights/LOLv2_real/best_PSNR.pth \
+    --nEpochs=50 \
+    --lr=0.00001 \
+    --use_face_loss \
+    --FR_weight=0.5 \
+    --FR_model_path=./pretrained/adaface/adaface_ir50_webface4m.ckpt
+
+# Benefits:
+# - Faster convergence (already trained on low-light)
+# - Better baseline performance
+# - More robust results for thesis
+# - Use lower learning rate (0.00001) and fewer epochs (50)
+```
+
+Available pretrained CIDNet models:
+- `./weights/LOLv2_real/best_PSNR.pth` - Best PSNR on LOLv2 real
+- `./weights/LOLv2_real/best_SSIM.pth` - Best SSIM on LOLv2 real
+- `./weights/LOLv1/w_perc.pth` - LOLv1 with perceptual loss
+- `./weights/SICE.pth` - SICE dataset
+- `./weights/LOL-Blur.pth` - LOL with blur
 
 ### Recommended Loss Weight Combinations to Try
 
@@ -192,18 +236,23 @@ For your ablation study, try these configurations:
 
 ### Quick Training (For Testing)
 
-Test your setup quickly with reduced epochs:
+Test your setup quickly with reduced epochs and small dataset:
 
 ```bash
-# Quick test (10 epochs)
+# Quick test (10 epochs) - Fine-tune from pretrained
 python train.py \
-    --lfw=True \
+    --lfw \
     --data_train_lfw=./datasets/LFW_small/train \
     --data_val_lfw=./datasets/LFW_small/val \
     --data_valgt_lfw=./datasets/LFW_small/val/high \
+    --pretrained_model=./weights/LOLv2_real/best_PSNR.pth \
     --nEpochs=10 \
-    --use_face_loss=True \
-    --FR_weight=0.5
+    --use_face_loss \
+    --FR_weight=0.5 \
+    --FR_model_path=./pretrained/adaface/adaface_ir50_webface4m.ckpt
+
+# Note: LFW images are typically small (125x94), so they are automatically
+# resized to 288x288 before cropping to 256x256 during training
 ```
 
 ### Monitoring Training
@@ -431,19 +480,73 @@ If you encounter issues:
 # 1. Prepare dataset
 python prepare_lfw_dataset.py --download
 
-# 2. Train baseline
-python train.py --lfw=True --nEpochs=100
+# 2. Train baseline (from scratch)
+python train.py --lfw --nEpochs=100
 
-# 3. Train with FR loss
-python train.py --lfw=True --use_face_loss=True --FR_weight=0.5 --nEpochs=100
+# 3. Train with FR loss (recommended: fine-tune from pretrained)
+python train.py \
+    --lfw \
+    --pretrained_model=./weights/LOLv2_real/best_PSNR.pth \
+    --use_face_loss \
+    --FR_weight=0.5 \
+    --FR_model_path=./pretrained/adaface/adaface_ir50_webface4m.ckpt \
+    --nEpochs=50 \
+    --lr=0.00001
 
 # 4. Evaluate face verification
 python eval_face_verification.py \
-    --model=./weights/train/epoch_100.pth \
+    --model=./weights/train/epoch_50.pth \
     --test_dir=./datasets/LFW_lowlight/test
 
 # 5. View results
 cat ./results/face_verification/face_verification_results.txt
+```
+
+### Common Issues and Solutions
+
+#### Issue 1: "unrecognized arguments: --lfw=True"
+
+**Problem:** Using `=True` syntax with boolean flags.
+
+**Solution:** Use flags without `=True`:
+```bash
+# ❌ Wrong:
+--lfw=True --use_face_loss=True
+
+# ✅ Correct:
+--lfw --use_face_loss
+```
+
+#### Issue 2: "Required crop size (256, 256) is larger than input image size"
+
+**Problem:** LFW images are too small for the crop size.
+
+**Solution:** Images are automatically resized. If you still see this error, ensure you're using the latest code with the `transform_lfw()` function in `data/data.py`.
+
+#### Issue 3: "FileNotFoundError: ./datasets/LOLdataset/eval15/low"
+
+**Problem:** The model is trying to load LOL dataset instead of LFW.
+
+**Solution:** In older versions, you needed to explicitly set `--lol_v1=False`. In the latest version, all dataset flags default to `False`, so just use `--lfw`.
+
+#### Issue 4: NumPy 2.x Compatibility Issues
+
+**Problem:** scikit-learn compiled against NumPy 1.x but NumPy 2.x is installed.
+
+**Solution:**
+```bash
+pip install --force-reinstall "numpy<2.0,>=1.22"
+```
+
+#### Issue 5: AdaFace weights not loading
+
+**Problem:** "Using randomly initialized weights" warning appears.
+
+**Solution:** Download AdaFace weights or specify correct path:
+```bash
+# Download from: https://github.com/mk-minchul/AdaFace/releases
+# Then use:
+--FR_model_path=./pretrained/adaface/adaface_ir50_webface4m.ckpt
 ```
 
 ---
