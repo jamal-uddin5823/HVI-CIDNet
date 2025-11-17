@@ -1,4 +1,4 @@
-from torchvision.transforms import Compose, ToTensor, RandomCrop, RandomHorizontalFlip, RandomVerticalFlip
+from torchvision.transforms import Compose, ToTensor, RandomCrop, RandomHorizontalFlip, RandomVerticalFlip, Resize
 from data.LOLdataset import *
 from data.eval_sets import *
 from data.SICE_blur_SID import *
@@ -11,6 +11,15 @@ def transform1(size=256):
         RandomHorizontalFlip(),
         RandomVerticalFlip(),
         ToTensor(),
+    ])
+
+def transform_lfw(size=256):
+    """Transform for LFW dataset - resize first since LFW images are typically smaller"""
+    return Compose([
+        Resize((size + 32, size + 32)),  # Resize to slightly larger than crop size
+        RandomCrop((size, size)),
+        RandomHorizontalFlip(),
+        ToTensor(),  # No vertical flip for faces
     ])
 
 def transform2():
@@ -54,7 +63,11 @@ def get_fivek_eval_set(data_dir):
     return SICEDatasetFromFolderEval(data_dir, transform=transform2())
 
 def get_lfw_training_set(data_dir, size):
-    return LFWDatasetFromFolder(data_dir, transform=transform1(size))
+    return LFWDatasetFromFolder(data_dir, transform=transform_lfw(size))
 
 def get_lfw_eval_set(data_dir):
-    return LFWDatasetFromFolderEval(data_dir, transform=transform2())
+    # For eval, resize to standard size without random crop
+    return LFWDatasetFromFolderEval(data_dir, transform=Compose([
+        Resize((256, 256)),  # Resize to standard size for evaluation
+        ToTensor()
+    ]))
