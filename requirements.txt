@@ -1,29 +1,22 @@
-# Core dependencies (Python 3.12 compatible)
-numpy>=1.24.0
-scipy>=1.11.0           # Python 3.12 requires scipy>=1.11
-matplotlib>=3.7.0       # Python 3.12 compatible
-Pillow>=9.5.0
-opencv-python>=4.7.0
-opencv_contrib_python>=4.7.0
-tqdm>=4.65.0
-
-# Deep learning
-torch>=1.13.1
-torchvision>=0.14.1
-einops>=0.6.1
-
-# Image quality metrics
-lpips>=0.1.4
-arch>=5.3.0
-image_quality>=1.2.7
+# Original CIDNet dependencies (keep as-is for compatibility)
+arch==5.3.1
+image_quality==1.2.7
+lpips==0.1.4
+matplotlib==3.5.3
+numpy<2.0,>=1.18.5      # Keep numpy 1.x for compatibility with gensim, numba
+opencv_contrib_python==4.7.0.72
+Pillow<11,>=7.1.0       # Keep <11 for streamlit compatibility
+scipy>=1.7.0,<1.14.0    # Compatible with both Python 3.10-3.11 and gensim
 thop
-
-# Gradio interface
+torch==1.13.1
+torchvision==0.14.1
+tqdm==4.65.0
+einops==0.6.1
+opencv-python
 gradio
 huggingface_hub
 safetensors
 
-# Face Recognition Loss dependencies
-facenet-pytorch>=2.5.2  # Pre-trained face recognition models
-scikit-image>=0.19.0    # Additional image metrics
-scikit-learn>=1.1.0     # LFW dataset download (fetch_lfw_people), Python 3.12 compatible
+# Face Recognition Loss - MINIMAL additions (compatible with above)
+scikit-learn>=1.0.0,<1.4.0  # For LFW dataset download (works with numpy<2.0)
+facenet-pytorch>=2.5.2      # Face recognition models (no conflicting deps)
