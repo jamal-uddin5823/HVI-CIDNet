@@ -53,12 +53,12 @@ echo "Training mode: $([ -f "$CIDNET_WEIGHTS" ] && echo "Fine-tuning ($EPOCHS ep
 echo "Each run trains for $EPOCHS epochs"
 echo "Total runs: 4"
 echo ""
-read -p "Continue? (y/n) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 1
-fi
+# read -p "Continue? (y/n) " -n 1 -r
+# echo
+# if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+#     echo "Aborted."
+#     exit 1
+# fi
 
 # Function to train baseline (no FR loss)
 train_baseline() {
@@ -82,7 +82,7 @@ train_baseline() {
         --cropSize=$CROP_SIZE \
         --nEpochs=$EPOCHS \
         --lr=$LR \
-        --snapshots=10
+        --snapshots=10 > logs/baseline_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
 
     # Move weights to ablation directory
     mv ./weights/train/* $WEIGHTS_DIR/
@@ -116,7 +116,7 @@ train_with_fr() {
         --use_face_loss \
         --FR_weight=$FR_WEIGHT \
         $ADAFACE_ARG \
-        --snapshots=10
+        --snapshots=10 > logs/fr_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
 
     # Move weights to ablation directory
     mv ./weights/train/* $WEIGHTS_DIR/
@@ -130,16 +130,16 @@ echo "Starting ablation study..."
 echo ""
 
 # 1. Baseline (no FR loss)
-train_baseline "baseline"
+# train_baseline "baseline"
 
 # 2. FR weight = 0.3
-train_with_fr "fr_weight_0.3" 0.3
+# train_with_fr "fr_weight_0.3" 0.3
 
 # 3. FR weight = 0.5 (recommended)
-train_with_fr "fr_weight_0.5" 0.5
+# train_with_fr "fr_weight_0.5" 0.5
 
 # 4. FR weight = 1.0
-train_with_fr "fr_weight_1.0" 1.0
+# train_with_fr "fr_weight_1.0" 1.0
 
 # Generate pairs for evaluation
 echo ""
@@ -182,12 +182,13 @@ if [ ! -f "$ADAFACE_WEIGHTS" ]; then
     echo "  Face verification evaluation requires AdaFace weights."
     echo "  Download from: https://github.com/mk-minchul/AdaFace/releases"
     echo ""
-    read -p "Continue without face verification? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted. Please download AdaFace weights first."
-        exit 1
-    fi
+    exit 1
+    # read -p "Continue without face verification? (y/n) " -n 1 -r
+    # echo
+    # if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    #     echo "Aborted. Please download AdaFace weights first."
+    #     exit 1
+    # fi
 fi
 
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
@@ -210,7 +211,7 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
                     --pairs_file=$PAIRS_FILE \
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config
+                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").txt 2>&1
 
                 if [ $? -eq 0 ]; then
                     echo "  ✓ Evaluation completed"
@@ -225,13 +226,14 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
                     --test_dir=$DATASET_DIR/test \
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config
+                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").txt 2>&1
 
                 if [ $? -eq 0 ]; then
                     echo "  ✓ Evaluation completed"
                 else
                     echo "  ✗ Evaluation failed with exit code $?"
                 fi
+                   
             fi
         else
             echo "  ✗ Skipping face verification (AdaFace weights not found: $ADAFACE_WEIGHTS)"
@@ -373,7 +375,7 @@ if command -v python &> /dev/null; then
 
     python plot_ablation_results.py \
         --results_dir=./results/ablation \
-        --output_dir=./results/ablation/figures
+        --output_dir=./results/ablation/figures > ./results/ablation/figures/plot_generation_$(date +"%Y%m%d_%H%M%S").txt 2>&1
 
     if [ $? -eq 0 ]; then
         echo ""

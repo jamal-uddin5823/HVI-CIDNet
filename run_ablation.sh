@@ -1,0 +1,1 @@
+./examples/ablation_study.sh > logs/ablation_$(date +"%Y-%m-%d_%H-%M-%S").log
