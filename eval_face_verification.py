@@ -141,6 +141,371 @@ def enhance_image(model, img_tensor, device='cuda'):
     return enhanced
 
 
+def load_pairs_file(pairs_file):
+    """Load pairs from pairs.txt file
+
+    Args:
+        pairs_file: Path to pairs.txt
+
+    Returns:
+        list: List of (low_name, high_name, label) tuples
+    """
+    pairs = []
+    with open(pairs_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and empty lines
+            if not line or line.startswith('#'):
+                continue
+
+            parts = line.split()
+            if len(parts) != 3:
+                continue
+
+            low_name, high_name, label = parts
+            pairs.append((low_name, high_name, int(label)))
+
+    return pairs
+
+
+def evaluate_face_verification_with_pairs(
+    enhancement_model,
+    face_model,
+    test_dir,
+    pairs_file,
+    device='cuda',
+    max_pairs=None,
+    save_results=True,
+    output_dir='./results/face_verification'
+):
+    """
+    Evaluate face verification accuracy using pairs.txt protocol
+
+    This properly evaluates genuine pairs (same person) vs impostor pairs (different people)
+    and computes standard verification metrics like TAR@FAR, EER, etc.
+
+    Args:
+        enhancement_model: CIDNet model
+        face_model: Face recognition model
+        test_dir: Directory with low/high subdirectories
+        pairs_file: Path to pairs.txt file
+        device: Device to use
+        max_pairs: Maximum number of pairs to evaluate (None = all)
+        save_results: Save detailed results to file
+        output_dir: Output directory for results
+
+    Returns:
+        dict: Evaluation metrics
+    """
+    print("\n" + "="*70)
+    print("Face Verification Evaluation (Pairs Protocol)")
+    print("="*70)
+
+    # Load pairs
+    print(f"\nLoading pairs from: {pairs_file}")
+    pairs = load_pairs_file(pairs_file)
+
+    if max_pairs is not None and len(pairs) > max_pairs:
+        pairs = pairs[:max_pairs]
+
+    print(f"Loaded {len(pairs)} pairs")
+
+    # Separate genuine and impostor pairs
+    genuine_pairs = [(l, h) for l, h, label in pairs if label == 1]
+    impostor_pairs = [(l, h) for l, h, label in pairs if label == 0]
+
+    print(f"  Genuine pairs (same person):  {len(genuine_pairs)}")
+    print(f"  Impostor pairs (different):   {len(impostor_pairs)}")
+
+    # Setup directories
+    low_dir = os.path.join(test_dir, 'low')
+    high_dir = os.path.join(test_dir, 'high')
+
+    # Get file extension mapping
+    low_files = {os.path.splitext(f)[0]: f for f in os.listdir(low_dir)
+                 if f.endswith(('.png', '.jpg', '.jpeg'))}
+    high_files = {os.path.splitext(f)[0]: f for f in os.listdir(high_dir)
+                  if f.endswith(('.png', '.jpg', '.jpeg'))}
+
+    # Storage for scores
+    genuine_scores_low = []
+    genuine_scores_enhanced = []
+    impostor_scores_low = []
+    impostor_scores_enhanced = []
+    psnr_values = []
+    ssim_values = []
+
+    # Transform
+    to_tensor = transforms.ToTensor()
+
+    # Evaluate genuine pairs
+    print("\nEvaluating genuine pairs (same person)...")
+    for low_name, high_name in tqdm(genuine_pairs, desc="Genuine pairs"):
+        try:
+            # Get filenames
+            low_file = low_files.get(low_name)
+            high_file = high_files.get(high_name)
+
+            if low_file is None or high_file is None:
+                continue
+
+            # Load images
+            low_path = os.path.join(low_dir, low_file)
+            high_path = os.path.join(high_dir, high_file)
+
+            low_img = Image.open(low_path).convert('RGB')
+            high_img = Image.open(high_path).convert('RGB')
+
+            low_tensor = to_tensor(low_img).unsqueeze(0).to(device)
+            high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
+
+            # Enhance
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device)
+
+            # Compute PSNR/SSIM (only for genuine pairs where they match)
+            if low_name == high_name:
+                psnr = compute_psnr(enhanced_tensor, high_tensor)
+                ssim = compute_ssim(enhanced_tensor, high_tensor)
+                psnr_values.append(psnr)
+                ssim_values.append(ssim)
+
+            # Preprocess for face recognition
+            low_face = preprocess_for_face_recognizer(low_tensor)
+            enhanced_face = preprocess_for_face_recognizer(enhanced_tensor)
+            high_face = preprocess_for_face_recognizer(high_tensor)
+
+            # Extract features
+            with torch.no_grad():
+                feat_low = face_model(low_face)
+                feat_enhanced = face_model(enhanced_face)
+                feat_high = face_model(high_face)
+
+                if feat_low.dim() > 2:
+                    feat_low = feat_low.view(feat_low.size(0), -1)
+                    feat_enhanced = feat_enhanced.view(feat_enhanced.size(0), -1)
+                    feat_high = feat_high.view(feat_high.size(0), -1)
+
+            # Compute similarities (genuine pair: should be high)
+            sim_low = compute_face_similarity(feat_low, feat_high).item()
+            sim_enhanced = compute_face_similarity(feat_enhanced, feat_high).item()
+
+            genuine_scores_low.append(sim_low)
+            genuine_scores_enhanced.append(sim_enhanced)
+
+        except Exception as e:
+            print(f"\n  Error processing genuine pair ({low_name}, {high_name}): {e}")
+            continue
+
+    # Evaluate impostor pairs
+    print("\nEvaluating impostor pairs (different people)...")
+    for low_name, high_name in tqdm(impostor_pairs, desc="Impostor pairs"):
+        try:
+            # Get filenames
+            low_file = low_files.get(low_name)
+            high_file = high_files.get(high_name)
+
+            if low_file is None or high_file is None:
+                continue
+
+            # Load images
+            low_path = os.path.join(low_dir, low_file)
+            high_path = os.path.join(high_dir, high_file)
+
+            low_img = Image.open(low_path).convert('RGB')
+            high_img = Image.open(high_path).convert('RGB')
+
+            low_tensor = to_tensor(low_img).unsqueeze(0).to(device)
+            high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
+
+            # Enhance
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device)
+
+            # Preprocess for face recognition
+            low_face = preprocess_for_face_recognizer(low_tensor)
+            enhanced_face = preprocess_for_face_recognizer(enhanced_tensor)
+            high_face = preprocess_for_face_recognizer(high_tensor)
+
+            # Extract features
+            with torch.no_grad():
+                feat_low = face_model(low_face)
+                feat_enhanced = face_model(enhanced_face)
+                feat_high = face_model(high_face)
+
+                if feat_low.dim() > 2:
+                    feat_low = feat_low.view(feat_low.size(0), -1)
+                    feat_enhanced = feat_enhanced.view(feat_enhanced.size(0), -1)
+                    feat_high = feat_high.view(feat_high.size(0), -1)
+
+            # Compute similarities (impostor pair: should be low)
+            sim_low = compute_face_similarity(feat_low, feat_high).item()
+            sim_enhanced = compute_face_similarity(feat_enhanced, feat_high).item()
+
+            impostor_scores_low.append(sim_low)
+            impostor_scores_enhanced.append(sim_enhanced)
+
+        except Exception as e:
+            print(f"\n  Error processing impostor pair ({low_name}, {high_name}): {e}")
+            continue
+
+    # Compute verification metrics
+    print("\n" + "="*70)
+    print("Verification Metrics")
+    print("="*70)
+
+    # Find optimal threshold using EER
+    all_scores_low = genuine_scores_low + impostor_scores_low
+    all_labels = [1] * len(genuine_scores_low) + [0] * len(impostor_scores_low)
+
+    all_scores_enhanced = genuine_scores_enhanced + impostor_scores_enhanced
+
+    # Compute metrics at various thresholds
+    thresholds = np.linspace(0, 1, 100)
+    tar_low_list = []
+    far_low_list = []
+    tar_enhanced_list = []
+    far_enhanced_list = []
+
+    for thresh in thresholds:
+        # Low-light
+        tp_low = sum([1 for s in genuine_scores_low if s >= thresh])
+        fn_low = len(genuine_scores_low) - tp_low
+        fp_low = sum([1 for s in impostor_scores_low if s >= thresh])
+        tn_low = len(impostor_scores_low) - fp_low
+
+        tar_low = tp_low / len(genuine_scores_low) if len(genuine_scores_low) > 0 else 0
+        far_low = fp_low / len(impostor_scores_low) if len(impostor_scores_low) > 0 else 0
+        tar_low_list.append(tar_low)
+        far_low_list.append(far_low)
+
+        # Enhanced
+        tp_enh = sum([1 for s in genuine_scores_enhanced if s >= thresh])
+        fn_enh = len(genuine_scores_enhanced) - tp_enh
+        fp_enh = sum([1 for s in impostor_scores_enhanced if s >= thresh])
+        tn_enh = len(impostor_scores_enhanced) - fp_enh
+
+        tar_enh = tp_enh / len(genuine_scores_enhanced) if len(genuine_scores_enhanced) > 0 else 0
+        far_enh = fp_enh / len(impostor_scores_enhanced) if len(impostor_scores_enhanced) > 0 else 0
+        tar_enhanced_list.append(tar_enh)
+        far_enhanced_list.append(far_enh)
+
+    # Find EER (where FRR = FAR, or TAR = 1 - FAR)
+    eer_idx_low = np.argmin(np.abs(np.array(tar_low_list) - (1 - np.array(far_low_list))))
+    eer_low = (far_low_list[eer_idx_low] + (1 - tar_low_list[eer_idx_low])) / 2
+    eer_thresh_low = thresholds[eer_idx_low]
+
+    eer_idx_enh = np.argmin(np.abs(np.array(tar_enhanced_list) - (1 - np.array(far_enhanced_list))))
+    eer_enhanced = (far_enhanced_list[eer_idx_enh] + (1 - tar_enhanced_list[eer_idx_enh])) / 2
+    eer_thresh_enh = thresholds[eer_idx_enh]
+
+    # Find TAR @ FAR = 0.1%, 1%
+    tar_at_far_001_low = tar_low_list[np.argmin(np.abs(np.array(far_low_list) - 0.001))]
+    tar_at_far_01_low = tar_low_list[np.argmin(np.abs(np.array(far_low_list) - 0.01))]
+
+    tar_at_far_001_enh = tar_enhanced_list[np.argmin(np.abs(np.array(far_enhanced_list) - 0.001))]
+    tar_at_far_01_enh = tar_enhanced_list[np.argmin(np.abs(np.array(far_enhanced_list) - 0.01))]
+
+    # Compile results
+    results = {
+        'num_genuine': len(genuine_scores_low),
+        'num_impostor': len(impostor_scores_low),
+        'genuine_mean_low': np.mean(genuine_scores_low),
+        'genuine_std_low': np.std(genuine_scores_low),
+        'genuine_mean_enhanced': np.mean(genuine_scores_enhanced),
+        'genuine_std_enhanced': np.std(genuine_scores_enhanced),
+        'impostor_mean_low': np.mean(impostor_scores_low),
+        'impostor_std_low': np.std(impostor_scores_low),
+        'impostor_mean_enhanced': np.mean(impostor_scores_enhanced),
+        'impostor_std_enhanced': np.std(impostor_scores_enhanced),
+        'eer_low': eer_low,
+        'eer_threshold_low': eer_thresh_low,
+        'eer_enhanced': eer_enhanced,
+        'eer_threshold_enhanced': eer_thresh_enh,
+        'tar_at_far_0.1%_low': tar_at_far_001_low,
+        'tar_at_far_1%_low': tar_at_far_01_low,
+        'tar_at_far_0.1%_enhanced': tar_at_far_001_enh,
+        'tar_at_far_1%_enhanced': tar_at_far_01_enh,
+        'psnr_mean': np.mean(psnr_values) if psnr_values else 0,
+        'ssim_mean': np.mean(ssim_values) if ssim_values else 0,
+    }
+
+    # Print results
+    print(f"\nGenuine Pair Scores (same person - should be HIGH):")
+    print(f"  Low-light:  {results['genuine_mean_low']:.4f} ± {results['genuine_std_low']:.4f}")
+    print(f"  Enhanced:   {results['genuine_mean_enhanced']:.4f} ± {results['genuine_std_enhanced']:.4f}")
+    print(f"  Improvement: {results['genuine_mean_enhanced'] - results['genuine_mean_low']:.4f}")
+
+    print(f"\nImpostor Pair Scores (different people - should be LOW):")
+    print(f"  Low-light:  {results['impostor_mean_low']:.4f} ± {results['impostor_std_low']:.4f}")
+    print(f"  Enhanced:   {results['impostor_mean_enhanced']:.4f} ± {results['impostor_std_enhanced']:.4f}")
+
+    print(f"\nVerification Performance:")
+    print(f"  Equal Error Rate (EER):")
+    print(f"    Low-light:  {eer_low*100:.2f}% (threshold={eer_thresh_low:.3f})")
+    print(f"    Enhanced:   {eer_enhanced*100:.2f}% (threshold={eer_thresh_enh:.3f})")
+    print(f"    Improvement: {(eer_low - eer_enhanced)*100:.2f}%")
+
+    print(f"\n  True Accept Rate (TAR) @ FAR=0.1%:")
+    print(f"    Low-light:  {tar_at_far_001_low*100:.2f}%")
+    print(f"    Enhanced:   {tar_at_far_001_enh*100:.2f}%")
+    print(f"    Improvement: {(tar_at_far_001_enh - tar_at_far_001_low)*100:.2f}%")
+
+    print(f"\n  True Accept Rate (TAR) @ FAR=1%:")
+    print(f"    Low-light:  {tar_at_far_01_low*100:.2f}%")
+    print(f"    Enhanced:   {tar_at_far_01_enh*100:.2f}%")
+    print(f"    Improvement: {(tar_at_far_01_enh - tar_at_far_01_low)*100:.2f}%")
+
+    if psnr_values:
+        print(f"\nImage Quality:")
+        print(f"  PSNR: {results['psnr_mean']:.2f} dB")
+        print(f"  SSIM: {results['ssim_mean']:.4f}")
+
+    # Save results
+    if save_results:
+        os.makedirs(output_dir, exist_ok=True)
+        results_file = os.path.join(output_dir, 'face_verification_results.txt')
+
+        with open(results_file, 'w') as f:
+            f.write("Face Verification Evaluation Results (Pairs Protocol)\n")
+            f.write("="*70 + "\n\n")
+            f.write(f"Pairs file: {pairs_file}\n")
+            f.write(f"Genuine pairs: {results['num_genuine']}\n")
+            f.write(f"Impostor pairs: {results['num_impostor']}\n\n")
+
+            f.write("Genuine Pair Scores (same person):\n")
+            f.write(f"  Low-light avg similarity:  {results['genuine_mean_low']:.4f} ± {results['genuine_std_low']:.4f}\n")
+            f.write(f"  Enhanced avg similarity:   {results['genuine_mean_enhanced']:.4f} ± {results['genuine_std_enhanced']:.4f}\n")
+            f.write(f"  Similarity improvement:    {results['genuine_mean_enhanced'] - results['genuine_mean_low']:.4f}\n\n")
+
+            f.write("Impostor Pair Scores (different people):\n")
+            f.write(f"  Low-light avg similarity:  {results['impostor_mean_low']:.4f} ± {results['impostor_std_low']:.4f}\n")
+            f.write(f"  Enhanced avg similarity:   {results['impostor_mean_enhanced']:.4f} ± {results['impostor_std_enhanced']:.4f}\n\n")
+
+            f.write("Verification Performance:\n")
+            f.write(f"  Equal Error Rate (EER):\n")
+            f.write(f"    Low-light:  {eer_low*100:.2f}% (threshold={eer_thresh_low:.3f})\n")
+            f.write(f"    Enhanced:   {eer_enhanced*100:.2f}% (threshold={eer_thresh_enh:.3f})\n")
+            f.write(f"    Improvement: {(eer_low - eer_enhanced)*100:.2f}%\n\n")
+
+            f.write(f"  True Accept Rate @ FAR=0.1%:\n")
+            f.write(f"    Low-light:  {tar_at_far_001_low*100:.2f}%\n")
+            f.write(f"    Enhanced:   {tar_at_far_001_enh*100:.2f}%\n")
+            f.write(f"    Improvement: {(tar_at_far_001_enh - tar_at_far_001_low)*100:.2f}%\n\n")
+
+            f.write(f"  True Accept Rate @ FAR=1%:\n")
+            f.write(f"    Low-light:  {tar_at_far_01_low*100:.2f}%\n")
+            f.write(f"    Enhanced:   {tar_at_far_01_enh*100:.2f}%\n")
+            f.write(f"    Improvement: {(tar_at_far_01_enh - tar_at_far_01_low)*100:.2f}%\n\n")
+
+            if psnr_values:
+                f.write("Image Quality:\n")
+                f.write(f"  Average PSNR: {results['psnr_mean']:.2f} dB\n")
+                f.write(f"  Average SSIM: {results['ssim_mean']:.4f}\n")
+
+        print(f"\nResults saved to: {results_file}")
+
+    return results
+
+
 def evaluate_face_verification(
     enhancement_model,
     face_model,
@@ -152,7 +517,8 @@ def evaluate_face_verification(
     output_dir='./results/face_verification'
 ):
     """
-    Evaluate face verification accuracy on enhanced images
+    Legacy evaluation: Evaluate face verification accuracy on enhanced images
+    (Only uses same-person pairs - not proper verification)
 
     Args:
         enhancement_model: CIDNet model
@@ -330,6 +696,8 @@ def main():
                        help='Path to trained CIDNet model')
     parser.add_argument('--test_dir', type=str, required=True,
                        help='Test directory with low/high subdirectories')
+    parser.add_argument('--pairs_file', type=str, default=None,
+                       help='Path to pairs.txt for proper verification evaluation (recommended)')
     parser.add_argument('--face_model', type=str, default='ir_50',
                        choices=['ir_50', 'ir_101'],
                        help='Face recognition model architecture')
@@ -338,7 +706,7 @@ def main():
     parser.add_argument('--max_pairs', type=int, default=None,
                        help='Maximum pairs to evaluate (for quick testing)')
     parser.add_argument('--threshold', type=float, default=0.5,
-                       help='Similarity threshold for verification')
+                       help='Similarity threshold for verification (legacy mode only)')
     parser.add_argument('--output_dir', type=str, default='./results/face_verification',
                        help='Output directory for results')
     parser.add_argument('--device', type=str, default='cuda',
@@ -361,16 +729,34 @@ def main():
     )
 
     # Run evaluation
-    results = evaluate_face_verification(
-        enhancement_model,
-        face_model,
-        args.test_dir,
-        device=args.device,
-        max_pairs=args.max_pairs,
-        threshold=args.threshold,
-        save_results=True,
-        output_dir=args.output_dir
-    )
+    if args.pairs_file is not None:
+        print("\n[Using pairs-based verification protocol]")
+        print("This will properly evaluate genuine vs. impostor pairs")
+        results = evaluate_face_verification_with_pairs(
+            enhancement_model,
+            face_model,
+            args.test_dir,
+            args.pairs_file,
+            device=args.device,
+            max_pairs=args.max_pairs,
+            save_results=True,
+            output_dir=args.output_dir
+        )
+    else:
+        print("\n[Using legacy evaluation mode]")
+        print("⚠ Warning: This only tests same-person pairs")
+        print("  For proper verification metrics, use --pairs_file")
+        print("  Generate pairs with: python generate_lfw_pairs.py")
+        results = evaluate_face_verification(
+            enhancement_model,
+            face_model,
+            args.test_dir,
+            device=args.device,
+            max_pairs=args.max_pairs,
+            threshold=args.threshold,
+            save_results=True,
+            output_dir=args.output_dir
+        )
 
     print("\n" + "="*70)
     print("Evaluation complete!")
