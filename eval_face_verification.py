@@ -387,6 +387,12 @@ def evaluate_face_verification_with_pairs(
             low_tensor = to_tensor(low_img).unsqueeze(0).to(device)
             high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
 
+            # Resize to dimensions that are multiples of 32 (prevents ResNet feature map misalignment)
+            target_h = ((high_tensor.shape[2] + 31) // 32) * 32
+            target_w = ((high_tensor.shape[3] + 31) // 32) * 32
+            low_tensor = F.interpolate(low_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
+            high_tensor = F.interpolate(high_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
+
             # Enhance (resize to match GT dimensions)
             enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
 
