@@ -285,11 +285,36 @@ def evaluate_face_verification_with_pairs(
     low_dir = os.path.join(test_dir, 'low')
     high_dir = os.path.join(test_dir, 'high')
 
-    # Get file extension mapping
-    low_files = {os.path.splitext(f)[0]: f for f in os.listdir(low_dir)
-                 if f.endswith(('.png', '.jpg', '.jpeg'))}
-    high_files = {os.path.splitext(f)[0]: f for f in os.listdir(high_dir)
-                  if f.endswith(('.png', '.jpg', '.jpeg'))}
+    # Build file mapping (handles both flat and subdirectory structures)
+    def build_file_map(base_dir):
+        """Build mapping from basename to relative path (handles LFW structure)"""
+        file_map = {}
+        # Check if using subdirectories (LFW structure)
+        has_subdirs = any(os.path.isdir(os.path.join(base_dir, d)) for d in os.listdir(base_dir))
+
+        if has_subdirs:
+            # Scan subdirectories
+            for person_name in os.listdir(base_dir):
+                person_dir = os.path.join(base_dir, person_name)
+                if not os.path.isdir(person_dir):
+                    continue
+                for filename in os.listdir(person_dir):
+                    if filename.endswith(('.png', '.jpg', '.jpeg')):
+                        basename = os.path.splitext(filename)[0]
+                        # Map both "basename" and "person/basename" to relative path
+                        relative_path = os.path.join(person_name, filename)
+                        file_map[basename] = relative_path
+                        file_map[f"{person_name}/{basename}"] = relative_path
+        else:
+            # Flat structure
+            for filename in os.listdir(base_dir):
+                if filename.endswith(('.png', '.jpg', '.jpeg')):
+                    basename = os.path.splitext(filename)[0]
+                    file_map[basename] = filename
+        return file_map
+
+    low_files = build_file_map(low_dir)
+    high_files = build_file_map(high_dir)
 
     # Storage for scores
     genuine_scores_low = []
@@ -620,11 +645,30 @@ def evaluate_face_verification(
     if not os.path.exists(low_dir) or not os.path.exists(high_dir):
         raise FileNotFoundError(f"Test directory structure invalid: {test_dir}")
 
-    # Get all image files
-    low_files = sorted([f for f in os.listdir(low_dir)
-                       if f.endswith(('.png', '.jpg', '.jpeg'))])
-    high_files = sorted([f for f in os.listdir(high_dir)
-                        if f.endswith(('.png', '.jpg', '.jpeg'))])
+    # Get all image files (handles both flat and subdirectory structures)
+    def collect_image_paths(base_dir):
+        """Collect all image paths (handles LFW subdirectory structure)"""
+        image_paths = []
+        # Check if using subdirectories
+        has_subdirs = any(os.path.isdir(os.path.join(base_dir, d)) for d in os.listdir(base_dir))
+
+        if has_subdirs:
+            # Scan subdirectories
+            for person_name in sorted(os.listdir(base_dir)):
+                person_dir = os.path.join(base_dir, person_name)
+                if not os.path.isdir(person_dir):
+                    continue
+                for filename in sorted(os.listdir(person_dir)):
+                    if filename.endswith(('.png', '.jpg', '.jpeg')):
+                        image_paths.append(os.path.join(person_name, filename))
+        else:
+            # Flat structure
+            image_paths = sorted([f for f in os.listdir(base_dir)
+                                if f.endswith(('.png', '.jpg', '.jpeg'))])
+        return image_paths
+
+    low_files = collect_image_paths(low_dir)
+    high_files = collect_image_paths(high_dir)
 
     # Limit number of pairs if specified
     if max_pairs is not None:

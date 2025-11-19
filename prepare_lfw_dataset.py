@@ -8,17 +8,23 @@ It uses physics-based low-light synthesis to create realistic low-light versions
 of LFW face images, enabling supervised training without requiring real low-light
 face data collection.
 
-Dataset Structure:
+Dataset Structure (preserves LFW person identity):
     datasets/LFW_lowlight/
     ├── train/
-    │   ├── low/      # Synthetic low-light faces
-    │   └── high/     # Original faces (ground truth)
-    ├── val/
     │   ├── low/
+    │   │   ├── George_W_Bush/
+    │   │   │   ├── George_W_Bush_0001.png  # Synthetic low-light
+    │   │   │   └── George_W_Bush_0002.png
+    │   │   └── Colin_Powell/
+    │   │       └── Colin_Powell_0001.png
     │   └── high/
-    └── test/
-        ├── low/
-        └── high/
+    │       ├── George_W_Bush/
+    │       │   ├── George_W_Bush_0001.png  # Ground truth
+    │       │   └── George_W_Bush_0002.png
+    │       └── Colin_Powell/
+    │           └── Colin_Powell_0001.png
+    ├── val/  (same structure)
+    └── test/ (same structure)
 
 Usage:
     python prepare_lfw_dataset.py --download  # Download and process LFW
@@ -223,9 +229,10 @@ def prepare_lfw_lowlight(
         print("Run with --download to download LFW dataset first")
         return False
 
-    # Collect all image paths
+    # Collect all image paths organized by person
     print("\n[Step 1/5] Scanning LFW directory...")
-    all_images = []
+    from collections import defaultdict
+    person_images = defaultdict(list)
     person_dirs = sorted([d for d in os.listdir(lfw_dir)
                          if os.path.isdir(os.path.join(lfw_dir, d))])
 
@@ -237,31 +244,52 @@ def prepare_lfw_lowlight(
         # Filter by minimum images per person
         if len(images) >= min_images_per_person:
             for img_name in images:
-                all_images.append(os.path.join(person_dir, img_name))
+                person_images[person_name].append(os.path.join(person_dir, img_name))
 
-    print(f"  Found {len(all_images)} images from {len(person_dirs)} people")
+    total_images = sum(len(imgs) for imgs in person_images.values())
+    print(f"  Found {total_images} images from {len(person_images)} people")
+    print(f"  All images from same person will be in same split (train/val/test)")
 
-    # Limit dataset size if specified
-    if max_images is not None and len(all_images) > max_images:
-        print(f"  Limiting to {max_images} images (for quick testing)")
-        random.shuffle(all_images)
-        all_images = all_images[:max_images]
+    # Split by PERSON (not by image) to avoid data leakage
+    # This ensures same person doesn't appear in both train and test
+    print("\n[Step 2/5] Splitting dataset by person...")
+    people = list(person_images.keys())
+    random.shuffle(people)
 
-    # Split into train/val/test
-    print("\n[Step 2/5] Splitting dataset...")
-    random.shuffle(all_images)
+    n_people = len(people)
+    n_train_people = int(n_people * train_ratio)
+    n_val_people = int(n_people * val_ratio)
 
-    n_total = len(all_images)
-    n_train = int(n_total * train_ratio)
-    n_val = int(n_total * val_ratio)
+    train_people = people[:n_train_people]
+    val_people = people[n_train_people:n_train_people + n_val_people]
+    test_people = people[n_train_people + n_val_people:]
 
-    train_images = all_images[:n_train]
-    val_images = all_images[n_train:n_train + n_val]
-    test_images = all_images[n_train + n_val:]
+    # Collect images for each split
+    train_images = []
+    val_images = []
+    test_images = []
 
-    print(f"  Train: {len(train_images)} images ({train_ratio*100:.0f}%)")
-    print(f"  Val:   {len(val_images)} images ({val_ratio*100:.0f}%)")
-    print(f"  Test:  {len(test_images)} images ({test_ratio*100:.0f}%)")
+    for person in train_people:
+        train_images.extend(person_images[person])
+    for person in val_people:
+        val_images.extend(person_images[person])
+    for person in test_people:
+        test_images.extend(person_images[person])
+
+    # Limit dataset size if specified (apply after person-based split)
+    if max_images is not None:
+        total_images = len(train_images) + len(val_images) + len(test_images)
+        if total_images > max_images:
+            print(f"  Limiting to {max_images} images (for quick testing)")
+            # Proportionally reduce each split
+            scale = max_images / total_images
+            train_images = train_images[:int(len(train_images) * scale)]
+            val_images = val_images[:int(len(val_images) * scale)]
+            test_images = test_images[:int(len(test_images) * scale)]
+
+    print(f"  Train: {len(train_images)} images from {len(train_people)} people ({train_ratio*100:.0f}%)")
+    print(f"  Val:   {len(val_images)} images from {len(val_people)} people ({val_ratio*100:.0f}%)")
+    print(f"  Test:  {len(test_images)} images from {len(test_people)} people ({test_ratio*100:.0f}%)")
 
     # Create output directories
     print("\n[Step 3/5] Creating output directories...")
@@ -288,11 +316,23 @@ def prepare_lfw_lowlight(
                 img = Image.open(img_path).convert('RGB')
                 img_array = np.array(img).astype(np.float32) / 255.0
 
-                # Generate filename (use index to avoid conflicts)
-                img_name = f"{split_name}_{idx:05d}.png"
+                # Preserve person identity in directory structure
+                # Extract person_name and original filename from path
+                # e.g., lfw/George_W_Bush/George_W_Bush_0001.jpg -> George_W_Bush/George_W_Bush_0001.png
+                original_filename = os.path.basename(img_path)
+                person_name = os.path.basename(os.path.dirname(img_path))
+
+                # Keep original filename but change extension to .png
+                img_name = os.path.splitext(original_filename)[0] + '.png'
+
+                # Create person subdirectories in output
+                person_low_dir = os.path.join(output_dir, split_name, 'low', person_name)
+                person_high_dir = os.path.join(output_dir, split_name, 'high', person_name)
+                os.makedirs(person_low_dir, exist_ok=True)
+                os.makedirs(person_high_dir, exist_ok=True)
 
                 # Save high-quality version (ground truth)
-                high_path = os.path.join(output_dir, split_name, 'high', img_name)
+                high_path = os.path.join(person_high_dir, img_name)
                 img.save(high_path)
 
                 # Generate low-light version using full physics-based synthesis
@@ -330,7 +370,7 @@ def prepare_lfw_lowlight(
 
                 # Save low-light version
                 low_light_img = (low_light_array * 255).astype(np.uint8)
-                low_path = os.path.join(output_dir, split_name, 'low', img_name)
+                low_path = os.path.join(person_low_dir, img_name)
                 Image.fromarray(low_light_img).save(low_path)
 
             except Exception as e:
@@ -340,20 +380,31 @@ def prepare_lfw_lowlight(
     # Generate dataset statistics
     print("\n[Step 5/5] Generating dataset statistics...")
     stats_file = os.path.join(output_dir, 'dataset_stats.txt')
+    total_images = len(train_images) + len(val_images) + len(test_images)
     with open(stats_file, 'w') as f:
         f.write("LFW Low-Light Dataset Statistics\n")
         f.write("="*70 + "\n\n")
         f.write(f"Source: {lfw_dir}\n")
         f.write(f"Output: {output_dir}\n\n")
-        f.write(f"Total images: {len(all_images)}\n")
-        f.write(f"  Train: {len(train_images)} ({train_ratio*100:.1f}%)\n")
-        f.write(f"  Val:   {len(val_images)} ({val_ratio*100:.1f}%)\n")
-        f.write(f"  Test:  {len(test_images)} ({test_ratio*100:.1f}%)\n\n")
+        f.write(f"Total images: {total_images}\n")
+        f.write(f"Total people: {len(person_images)}\n")
+        f.write(f"  Train: {len(train_images)} images from {len(train_people)} people ({train_ratio*100:.1f}%)\n")
+        f.write(f"  Val:   {len(val_images)} images from {len(val_people)} people ({val_ratio*100:.1f}%)\n")
+        f.write(f"  Test:  {len(test_images)} images from {len(test_people)} people ({test_ratio*100:.1f}%)\n\n")
+        f.write("Split strategy: Person-based (prevents data leakage)\n")
+        f.write("  - All images of same person stay in same split\n")
+        f.write("  - No person appears in multiple splits\n\n")
+        f.write("Filename format: Preserves person identity\n")
+        f.write("  - Example: George_W_Bush_0001.png\n")
+        f.write("  - Person name embedded in filename for face verification\n\n")
         f.write("Low-light synthesis parameters:\n")
         f.write("  Reduction factor: 0.05 - 0.15 (random per image)\n")
-        f.write("  Noise level: low/medium/high (random per image)\n")
+        f.write("  Shot noise: 1.0 - 2.0 (random per image)\n")
+        f.write("  Read noise: 0.005 - 0.015 (random per image)\n")
+        f.write("  Gain: 1.5 - 3.0 (random per image)\n")
         f.write("  Physics-based: Poisson-Gaussian sensor noise\n")
-        f.write("  White balance variation: ±10%\n")
+        f.write("  White balance variation: 10-20% (random per image)\n")
+        f.write("  Blur: Disabled (preserves facial identity)\n")
 
     print(f"\n  Statistics saved to: {stats_file}")
 
@@ -361,18 +412,26 @@ def prepare_lfw_lowlight(
     print("Dataset preparation complete!")
     print("="*70)
     print(f"\nDataset location: {output_dir}")
-    print("\nDirectory structure:")
+    print("\nDirectory structure (preserves LFW identity):")
     print("  LFW_lowlight/")
     print("  ├── train/")
-    print("  │   ├── low/   (synthetic low-light)")
-    print("  │   └── high/  (ground truth)")
-    print("  ├── val/")
     print("  │   ├── low/")
-    print("  │   └── high/")
-    print("  └── test/")
-    print("      ├── low/")
-    print("      └── high/")
-    print("\nYou can now train with: --lfw=True --data_train_lfw=./datasets/LFW_lowlight/train")
+    print("  │   │   ├── George_W_Bush/")
+    print("  │   │   │   ├── George_W_Bush_0001.png")
+    print("  │   │   │   └── George_W_Bush_0002.png")
+    print("  │   │   └── Colin_Powell/")
+    print("  │   │       └── Colin_Powell_0001.png")
+    print("  │   └── high/ (same structure)")
+    print("  ├── val/ (same structure)")
+    print("  └── test/ (same structure)")
+    print("\nFeatures:")
+    print("  ✓ Person identities preserved in directory structure")
+    print("  ✓ Person-based split (no data leakage)")
+    print("  ✓ Compatible with standard LFW verification protocol")
+    print("\nNext steps:")
+    print("  1. Train: python train.py --lfw=True --data_train_lfw=./datasets/LFW_lowlight/train")
+    print("  2. Generate pairs: python generate_lfw_pairs.py --test_dir=./datasets/LFW_lowlight/test")
+    print("  3. Evaluate: python eval_face_verification.py --pairs_file=pairs.txt ...")
 
     return True
 
