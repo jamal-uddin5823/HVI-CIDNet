@@ -38,7 +38,49 @@ from PIL import Image
 # Import model and loss
 from net.CIDNet import CIDNet
 from loss.adaface_model import build_model as build_adaface
-from measure import compute_psnr, compute_ssim
+from measure import calculate_psnr, calculate_ssim
+
+
+def compute_psnr(pred_tensor, target_tensor):
+    """Compute PSNR between two tensors
+
+    Args:
+        pred_tensor: Predicted image tensor (B, C, H, W) in range [0, 1]
+        target_tensor: Target image tensor (B, C, H, W) in range [0, 1]
+
+    Returns:
+        float: PSNR value
+    """
+    # Convert tensors to numpy arrays in range [0, 255]
+    pred_np = (pred_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+    target_np = (target_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+
+    # Convert to PIL Images for calculate_psnr
+    pred_img = Image.fromarray(pred_np)
+    target_img = Image.fromarray(target_np)
+
+    return calculate_psnr(pred_img, target_img)
+
+
+def compute_ssim(pred_tensor, target_tensor):
+    """Compute SSIM between two tensors
+
+    Args:
+        pred_tensor: Predicted image tensor (B, C, H, W) in range [0, 1]
+        target_tensor: Target image tensor (B, C, H, W) in range [0, 1]
+
+    Returns:
+        float: SSIM value
+    """
+    # Convert tensors to numpy arrays in range [0, 255]
+    pred_np = (pred_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+    target_np = (target_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+
+    # Convert to PIL Images for calculate_ssim
+    pred_img = Image.fromarray(pred_np)
+    target_img = Image.fromarray(target_np)
+
+    return calculate_ssim(pred_img, target_img)
 
 
 def load_enhancement_model(model_path, device='cuda'):
