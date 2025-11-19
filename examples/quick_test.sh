@@ -1,6 +1,7 @@
 #!/bin/bash
 # Quick Test Script for Rapid Iteration
 # Uses small dataset and few epochs to verify everything works
+# Tests both training and proper face verification evaluation
 
 echo "========================================================================"
 echo "Quick Test: Face Recognition Loss Implementation"
@@ -8,12 +9,12 @@ echo "========================================================================"
 
 # Step 1: Create small test dataset if needed
 if [ ! -d "./datasets/LFW_small" ]; then
-    echo "[1/3] Creating small test dataset (1000 images)..."
+    echo "[1/4] Creating small test dataset (1000 images)..."
     python prepare_lfw_dataset.py \
         --max_images=1000 \
         --output_dir=./datasets/LFW_small
 else
-    echo "[1/3] Using existing small dataset: ./datasets/LFW_small"
+    echo "[1/4] Using existing small dataset: ./datasets/LFW_small"
 fi
 
 # Check for pretrained weights
@@ -38,7 +39,7 @@ fi
 
 # Step 2: Quick training test (10 epochs)
 echo ""
-echo "[2/3] Running quick training test (10 epochs)..."
+echo "[2/4] Running quick training test (10 epochs)..."
 echo "This will verify that the face recognition loss is working correctly."
 echo ""
 
@@ -58,9 +59,32 @@ python train.py \
     --threads=4 \
     $ADAFACE_ARG
 
-# Step 3: Quick evaluation (Face Recognition Metrics!)
+# Step 3: Generate pairs for evaluation
 echo ""
-echo "[3/3] Running face verification evaluation (100 pairs)..."
+echo "[3/4] Generating pairs for face verification..."
+echo ""
+
+PAIRS_FILE="./pairs_lfw_small.txt"
+
+if [ ! -f "$PAIRS_FILE" ]; then
+    python generate_lfw_pairs.py \
+        --test_dir=./datasets/LFW_small/test \
+        --num_pairs=100 \
+        --output=$PAIRS_FILE
+
+    if [ $? -eq 0 ]; then
+        echo "✓ Pairs file generated: $PAIRS_FILE"
+    else
+        echo "⚠ Failed to generate pairs, will use legacy evaluation"
+        PAIRS_FILE=""
+    fi
+else
+    echo "✓ Using existing pairs file: $PAIRS_FILE"
+fi
+
+# Step 4: Quick evaluation (Face Recognition Metrics!)
+echo ""
+echo "[4/4] Running face verification evaluation..."
 echo "This is the KEY METRIC for your thesis!"
 echo ""
 
@@ -68,13 +92,27 @@ LATEST_MODEL=$(ls -t ./weights/train/*.pth | head -1)
 
 if [ -f "$LATEST_MODEL" ]; then
     if [ -f "$ADAFACE_WEIGHTS" ]; then
-        python eval_face_verification.py \
-            --model=$LATEST_MODEL \
-            --test_dir=./datasets/LFW_small/test \
-            --face_weights=$ADAFACE_WEIGHTS \
-            --face_model=ir_50 \
-            --max_pairs=100 \
-            --output_dir=./results/quick_test_face_verification
+        # Use pairs-based evaluation if pairs file exists
+        if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+            echo "Using pairs-based verification (proper genuine/impostor pairs)"
+            python eval_face_verification.py \
+                --model=$LATEST_MODEL \
+                --test_dir=./datasets/LFW_small/test \
+                --pairs_file=$PAIRS_FILE \
+                --face_weights=$ADAFACE_WEIGHTS \
+                --face_model=ir_50 \
+                --max_pairs=100 \
+                --output_dir=./results/quick_test_face_verification
+        else
+            echo "Using legacy evaluation (same-person pairs only)"
+            python eval_face_verification.py \
+                --model=$LATEST_MODEL \
+                --test_dir=./datasets/LFW_small/test \
+                --face_weights=$ADAFACE_WEIGHTS \
+                --face_model=ir_50 \
+                --max_pairs=100 \
+                --output_dir=./results/quick_test_face_verification
+        fi
     else
         echo "⚠ AdaFace weights not found. Running without face verification metrics."
         echo "  Download from: https://github.com/mk-minchul/AdaFace/releases"

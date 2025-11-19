@@ -289,48 +289,102 @@ python measure.py \
 
 ### Face Verification Evaluation (Key Thesis Metric!)
 
-Evaluate face verification accuracy to demonstrate the benefit of your approach:
+**Recommended: Pairs-Based Verification Protocol**
+
+This follows standard face verification evaluation with genuine and impostor pairs:
 
 ```bash
-# Full face verification evaluation
+# Step 1: Generate pairs (genuine + impostor)
+python generate_lfw_pairs.py \
+    --test_dir=./datasets/LFW_lowlight/test \
+    --num_pairs=1000 \
+    --output=pairs.txt
+
+# Step 2: Evaluate with pairs protocol
 python eval_face_verification.py \
     --model=./weights/train/epoch_100.pth \
     --test_dir=./datasets/LFW_lowlight/test \
+    --pairs_file=pairs.txt \
     --face_model=ir_50 \
     --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --output_dir=./results/face_verification
 
-# Quick evaluation (100 pairs only)
+# Results will show proper verification metrics:
+# ✓ Genuine pair similarity (same person - should be HIGH)
+# ✓ Impostor pair similarity (different people - should be LOW)
+# ✓ Equal Error Rate (EER) - lower is better
+# ✓ True Accept Rate @ FAR=0.1%, 1% - higher is better
+# ✓ PSNR/SSIM for image quality
+```
+
+**Quick Test (100 pairs):**
+
+```bash
+# Generate smaller pairs file
+python generate_lfw_pairs.py \
+    --test_dir=./datasets/LFW_small/test \
+    --num_pairs=100 \
+    --output=pairs_small.txt
+
+# Evaluate
+python eval_face_verification.py \
+    --model=./weights/train/epoch_10.pth \
+    --test_dir=./datasets/LFW_small/test \
+    --pairs_file=pairs_small.txt \
+    --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt \
+    --max_pairs=100
+```
+
+**Legacy Evaluation (Same-Person Pairs Only):**
+
+If you don't have a pairs file, the system falls back to legacy mode:
+
+```bash
+# Without pairs file (only tests reconstruction similarity)
 python eval_face_verification.py \
     --model=./weights/train/epoch_100.pth \
     --test_dir=./datasets/LFW_lowlight/test \
-    --max_pairs=100
+    --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt
 
-# Results will show:
-# - Face similarity improvement (enhanced vs. low-light)
-# - Verification accuracy improvement
-# - PSNR/SSIM for image quality
+# ⚠ Warning: This only measures face similarity between low-light and GT
+# For proper verification metrics (EER, TAR@FAR), use pairs-based evaluation
 ```
 
 ### Compare Baseline vs. Face Recognition Loss
 
-Create comparison table for your thesis:
+Create comparison table for your thesis using pairs-based evaluation:
 
 ```bash
+# Generate pairs once
+python generate_lfw_pairs.py \
+    --test_dir=./datasets/LFW_lowlight/test \
+    --num_pairs=1000 \
+    --output=pairs.txt
+
 # Evaluate baseline model
 python eval_face_verification.py \
     --model=./weights/baseline/epoch_100.pth \
     --test_dir=./datasets/LFW_lowlight/test \
+    --pairs_file=pairs.txt \
+    --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --output_dir=./results/baseline_face_verification
 
 # Evaluate model with FR loss
 python eval_face_verification.py \
     --model=./weights/with_fr_loss/epoch_100.pth \
     --test_dir=./datasets/LFW_lowlight/test \
+    --pairs_file=pairs.txt \
+    --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --output_dir=./results/fr_loss_face_verification
 
-# Compare results
-diff ./results/baseline_face_verification/face_verification_results.txt \
+# Compare key metrics
+echo "=== Baseline ==="
+grep "Equal Error Rate\|Genuine.*similarity\|TAR @ FAR=1%" \
+     ./results/baseline_face_verification/face_verification_results.txt
+
+echo ""
+echo "=== With Face Recognition Loss ==="
+grep "Equal Error Rate\|Genuine.*similarity\|TAR @ FAR=1%" \
      ./results/fr_loss_face_verification/face_verification_results.txt
 ```
 
@@ -338,13 +392,34 @@ diff ./results/baseline_face_verification/face_verification_results.txt \
 
 ## 5. Benchmarking
 
-### Create Results Table for Thesis
+### Automated Ablation Study
+
+**Use the provided script for systematic evaluation:**
+
+```bash
+# Run complete ablation study with pairs-based verification
+bash examples/ablation_study.sh
+
+# This will:
+# 1. Train 4 models: baseline, FR=0.3, FR=0.5, FR=1.0
+# 2. Generate pairs.txt for verification
+# 3. Evaluate all models with proper verification protocol
+# 4. Generate comparison table with EER, TAR@FAR metrics
+```
+
+### Manual Benchmarking
 
 Run comprehensive benchmarking for your thesis defense:
 
 ```bash
 #!/bin/bash
 # benchmark.sh - Run all evaluations for thesis
+
+# Generate pairs once
+python generate_lfw_pairs.py \
+    --test_dir=./datasets/LFW_lowlight/test \
+    --num_pairs=1000 \
+    --output=pairs.txt
 
 MODELS=(
     "baseline:./weights/baseline/epoch_100.pth"
@@ -362,10 +437,12 @@ for model_info in "${MODELS[@]}"; do
     # Standard metrics
     python eval.py --model=$MODEL --test_dir=./datasets/LFW_lowlight/test/low
 
-    # Face verification
+    # Face verification with pairs protocol
     python eval_face_verification.py \
         --model=$MODEL \
         --test_dir=./datasets/LFW_lowlight/test \
+        --pairs_file=pairs.txt \
+        --face_weights=./weights/adaface/adaface_ir50_webface4m.ckpt \
         --output_dir=./results/benchmark/$NAME
 done
 

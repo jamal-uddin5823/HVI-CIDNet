@@ -141,6 +141,33 @@ train_with_fr "fr_weight_0.5" 0.5
 # 4. FR weight = 1.0
 train_with_fr "fr_weight_1.0" 1.0
 
+# Generate pairs for evaluation
+echo ""
+echo "========================================================================"
+echo "Generating Pairs for Face Verification Evaluation"
+echo "========================================================================"
+echo "Creating genuine and impostor pairs following LFW protocol..."
+echo ""
+
+PAIRS_FILE="./pairs_lfw.txt"
+
+if [ ! -f "$PAIRS_FILE" ]; then
+    python generate_lfw_pairs.py \
+        --test_dir=$DATASET_DIR/test \
+        --num_pairs=1000 \
+        --output=$PAIRS_FILE
+
+    if [ $? -ne 0 ]; then
+        echo "⚠ Failed to generate pairs file"
+        echo "  Will proceed without pairs-based evaluation"
+        PAIRS_FILE=""
+    else
+        echo "✓ Pairs file generated: $PAIRS_FILE"
+    fi
+else
+    echo "✓ Using existing pairs file: $PAIRS_FILE"
+fi
+
 # Evaluation - Face Recognition Metrics (KEY for thesis!)
 echo ""
 echo "========================================================================"
@@ -171,12 +198,24 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
 
     if [ -f "$MODEL" ]; then
         if [ -f "$ADAFACE_WEIGHTS" ]; then
-            python eval_face_verification.py \
-                --model=$MODEL \
-                --test_dir=$DATASET_DIR/test \
-                --face_weights=$ADAFACE_WEIGHTS \
-                --face_model=ir_50 \
-                --output_dir=./results/ablation/$config
+            # Use pairs-based evaluation if pairs file exists
+            if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+                python eval_face_verification.py \
+                    --model=$MODEL \
+                    --test_dir=$DATASET_DIR/test \
+                    --pairs_file=$PAIRS_FILE \
+                    --face_weights=$ADAFACE_WEIGHTS \
+                    --face_model=ir_50 \
+                    --output_dir=./results/ablation/$config
+            else
+                # Fallback to legacy evaluation
+                python eval_face_verification.py \
+                    --model=$MODEL \
+                    --test_dir=$DATASET_DIR/test \
+                    --face_weights=$ADAFACE_WEIGHTS \
+                    --face_model=ir_50 \
+                    --output_dir=./results/ablation/$config
+            fi
         else
             echo "⚠ Skipping face verification for $config (no AdaFace weights)"
         fi
@@ -191,23 +230,50 @@ echo "========================================================================"
 echo "Ablation Study Results - Face Recognition Metrics"
 echo "========================================================================"
 echo ""
-echo "Configuration         | Face Similarity | Improvement | PSNR  | SSIM"
-echo "---------------------+----------------+-------------+-------+------"
 
-for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-    RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
-    if [ -f "$RESULT_FILE" ]; then
-        # Extract metrics (this is a simple parsing, you may need to adjust based on actual output format)
-        FACE_SIM=$(grep "Enhanced avg similarity:" $RESULT_FILE | awk '{print $4}' || echo "N/A")
-        IMPROVEMENT=$(grep "Similarity improvement:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
-        PSNR=$(grep "Average PSNR:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
-        SSIM=$(grep "Average SSIM:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+# Check if using pairs-based evaluation (has EER metrics)
+if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+    echo "Pairs-Based Verification Results:"
+    echo ""
+    echo "Configuration         | Genuine Sim | EER (%) | TAR@1% (%) | PSNR  | SSIM"
+    echo "---------------------+-------------+---------+------------+-------+------"
 
-        printf "%-20s | %-14s | %-11s | %-5s | %-5s\n" "$config" "$FACE_SIM" "$IMPROVEMENT" "$PSNR" "$SSIM"
-    else
-        printf "%-20s | Results not found\n" "$config"
-    fi
-done
+    for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
+        RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
+        if [ -f "$RESULT_FILE" ]; then
+            # Extract metrics from pairs-based evaluation
+            GENUINE_SIM=$(grep "Enhanced avg similarity:" $RESULT_FILE | head -1 | awk '{print $4}' || echo "N/A")
+            EER=$(grep "Enhanced:" $RESULT_FILE | grep "EER" | awk '{print $2}' | tr -d '%' || echo "N/A")
+            TAR=$(grep "Enhanced:" $RESULT_FILE | grep "TAR @ FAR=1%" -A 1 | tail -1 | awk '{print $2}' | tr -d '%' || echo "N/A")
+            PSNR=$(grep "Average PSNR:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+            SSIM=$(grep "Average SSIM:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+
+            printf "%-20s | %-11s | %-7s | %-10s | %-5s | %-5s\n" "$config" "$GENUINE_SIM" "$EER" "$TAR" "$PSNR" "$SSIM"
+        else
+            printf "%-20s | Results not found\n" "$config"
+        fi
+    done
+else
+    echo "Legacy Evaluation Results:"
+    echo ""
+    echo "Configuration         | Face Similarity | Improvement | PSNR  | SSIM"
+    echo "---------------------+----------------+-------------+-------+------"
+
+    for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
+        RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
+        if [ -f "$RESULT_FILE" ]; then
+            # Extract metrics from legacy evaluation
+            FACE_SIM=$(grep "Enhanced.*GT:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+            IMPROVEMENT=$(grep "Improvement:" $RESULT_FILE | head -1 | awk '{print $2}' || echo "N/A")
+            PSNR=$(grep "PSNR:" $RESULT_FILE | awk '{print $2}' | head -1 || echo "N/A")
+            SSIM=$(grep "SSIM:" $RESULT_FILE | awk '{print $2}' | head -1 || echo "N/A")
+
+            printf "%-20s | %-14s | %-11s | %-5s | %-5s\n" "$config" "$FACE_SIM" "$IMPROVEMENT" "$PSNR" "$SSIM"
+        else
+            printf "%-20s | Results not found\n" "$config"
+        fi
+    done
+fi
 
 echo ""
 echo "========================================================================"
@@ -216,14 +282,38 @@ echo "========================================================================"
 echo ""
 echo "Results saved to: ./results/ablation/"
 echo ""
-echo "For your thesis, use these results to demonstrate:"
-echo "1. Face similarity improvement with FR loss (KEY CONTRIBUTION)"
-echo "2. Optimal FR loss weight selection (e.g., 0.5)"
-echo "3. Trade-offs between image quality (PSNR/SSIM) and face similarity"
-echo "4. Comparison: Baseline vs. different FR loss weights"
+
+if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+    echo "For your thesis, use these results to demonstrate:"
+    echo "1. Face verification accuracy improvement (EER reduction) - KEY CONTRIBUTION"
+    echo "2. Genuine pair similarity improvement with FR loss"
+    echo "3. Impostor pair discrimination (should remain low)"
+    echo "4. TAR@FAR metrics showing real-world verification performance"
+    echo "5. Optimal FR loss weight selection (compare EER across weights)"
+    echo "6. Trade-offs between image quality (PSNR/SSIM) and verification accuracy"
+    echo ""
+    echo "Key Metrics Explanation:"
+    echo "  • Genuine Similarity: Higher is better (same person recognition)"
+    echo "  • EER (Equal Error Rate): Lower is better (overall accuracy)"
+    echo "  • TAR@FAR=1%: Higher is better (true accept rate at 1% false accepts)"
+    echo "  • PSNR/SSIM: Standard image quality metrics"
+else
+    echo "For your thesis, use these results to demonstrate:"
+    echo "1. Face similarity improvement with FR loss (KEY CONTRIBUTION)"
+    echo "2. Optimal FR loss weight selection (e.g., 0.5)"
+    echo "3. Trade-offs between image quality (PSNR/SSIM) and face similarity"
+    echo "4. Comparison: Baseline vs. different FR loss weights"
+    echo ""
+    echo "⚠ Note: For proper verification metrics (EER, TAR@FAR), ensure pairs.txt exists"
+fi
+
 echo ""
 echo "Next steps:"
 echo "1. Analyze detailed results in ./results/ablation/*/face_verification_results.txt"
-echo "2. Create graphs showing FR loss weight vs. face similarity"
+echo "2. Create graphs showing:"
+echo "   - FR loss weight vs. genuine similarity"
+echo "   - FR loss weight vs. EER (if pairs-based evaluation)"
+echo "   - TAR/FAR curves for each configuration"
 echo "3. Include visual comparisons in thesis (enhanced face images)"
+echo "4. Report verification improvements in results section"
 echo ""
