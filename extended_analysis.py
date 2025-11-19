@@ -143,16 +143,30 @@ def extract_identity(filename):
 
 def mcnemar_test(baseline_correct, fr_correct):
     """
-    Perform McNemar's test for statistical significance
+    Perform McNemar's test for comparing two models
 
     Args:
-        baseline_correct: Boolean array indicating if baseline classified correctly
+        baseline_correct: Boolean array indicating if baseline model classified correctly
         fr_correct: Boolean array indicating if FR model classified correctly
 
     Returns:
         dict: Test statistics and p-value
     """
     from scipy.stats import chi2
+
+    # Convert to boolean numpy arrays
+    baseline_correct = np.array(baseline_correct, dtype=bool)
+    fr_correct = np.array(fr_correct, dtype=bool)
+    
+    # Check if arrays are empty
+    if len(baseline_correct) == 0 or len(fr_correct) == 0:
+        return {
+            'n01': 0,
+            'n10': 0,
+            'chi_statistic': 0,
+            'p_value': 1.0,
+            'significant': False
+        }
 
     # Create contingency table
     # n01: baseline wrong, fr correct
@@ -240,11 +254,27 @@ def statistical_significance_analysis(
     low_dir = os.path.join(test_dir, 'low')
     high_dir = os.path.join(test_dir, 'high')
 
-    # Get file extension mapping
-    low_files = {os.path.splitext(f)[0]: f for f in os.listdir(low_dir)
-                 if f.endswith(('.png', '.jpg', '.jpeg'))}
-    high_files = {os.path.splitext(f)[0]: f for f in os.listdir(high_dir)
-                  if f.endswith(('.png', '.jpg', '.jpeg'))}
+    # Get file mapping with directory structure (person_name/image_name.ext -> full_path)
+    low_files = {}
+    high_files = {}
+    
+    for person_dir in os.listdir(low_dir):
+        person_path = os.path.join(low_dir, person_dir)
+        if os.path.isdir(person_path):
+            for img_file in os.listdir(person_path):
+                if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_name = os.path.splitext(img_file)[0]
+                    key = f"{person_dir}/{img_name}"
+                    low_files[key] = os.path.join(person_path, img_file)
+    
+    for person_dir in os.listdir(high_dir):
+        person_path = os.path.join(high_dir, person_dir)
+        if os.path.isdir(person_path):
+            for img_file in os.listdir(person_path):
+                if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_name = os.path.splitext(img_file)[0]
+                    key = f"{person_dir}/{img_name}"
+                    high_files[key] = os.path.join(person_path, img_file)
 
     # Storage for scores
     baseline_scores = []
@@ -257,16 +287,14 @@ def statistical_significance_analysis(
     print("\nComputing verification scores...")
     for low_name, high_name in tqdm(genuine_pairs, desc="Processing pairs"):
         try:
-            # Get filenames
-            low_file = low_files.get(low_name)
-            high_file = high_files.get(high_name)
+            # Get file paths (low_name and high_name already contain directory structure)
+            low_path = low_files.get(low_name)
+            high_path = high_files.get(high_name)
 
-            if low_file is None or high_file is None:
+            if low_path is None or high_path is None:
                 continue
 
-            # Load images
-            low_path = os.path.join(low_dir, low_file)
-            high_path = os.path.join(high_dir, high_file)
+            # Load images (paths are already complete)
 
             low_img = Image.open(low_path).convert('RGB')
             high_img = Image.open(high_path).convert('RGB')
@@ -440,11 +468,27 @@ def per_identity_analysis(
     low_dir = os.path.join(test_dir, 'low')
     high_dir = os.path.join(test_dir, 'high')
 
-    # Get file extension mapping
-    low_files = {os.path.splitext(f)[0]: f for f in os.listdir(low_dir)
-                 if f.endswith(('.png', '.jpg', '.jpeg'))}
-    high_files = {os.path.splitext(f)[0]: f for f in os.listdir(high_dir)
-                  if f.endswith(('.png', '.jpg', '.jpeg'))}
+    # Get file mapping with directory structure (person_name/image_name.ext -> full_path)
+    low_files = {}
+    high_files = {}
+    
+    for person_dir in os.listdir(low_dir):
+        person_path = os.path.join(low_dir, person_dir)
+        if os.path.isdir(person_path):
+            for img_file in os.listdir(person_path):
+                if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_name = os.path.splitext(img_file)[0]
+                    key = f"{person_dir}/{img_name}"
+                    low_files[key] = os.path.join(person_path, img_file)
+    
+    for person_dir in os.listdir(high_dir):
+        person_path = os.path.join(high_dir, person_dir)
+        if os.path.isdir(person_path):
+            for img_file in os.listdir(person_path):
+                if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_name = os.path.splitext(img_file)[0]
+                    key = f"{person_dir}/{img_name}"
+                    high_files[key] = os.path.join(person_path, img_file)
 
     # Storage for per-identity scores
     identity_scores = defaultdict(lambda: {'baseline': [], 'fr': []})
@@ -458,16 +502,14 @@ def per_identity_analysis(
             # Extract identity from low image name
             identity = extract_identity(low_name)
 
-            # Get filenames
-            low_file = low_files.get(low_name)
-            high_file = high_files.get(high_name)
+            # Get file paths
+            low_path = low_files.get(low_name)
+            high_path = high_files.get(high_name)
 
-            if low_file is None or high_file is None:
+            if low_path is None or high_path is None:
                 continue
 
-            # Load images
-            low_path = os.path.join(low_dir, low_file)
-            high_path = os.path.join(high_dir, high_file)
+            # Load images (paths are already complete)
 
             low_img = Image.open(low_path).convert('RGB')
             high_img = Image.open(high_path).convert('RGB')
@@ -720,11 +762,27 @@ def failure_case_analysis(
     low_dir = os.path.join(test_dir, 'low')
     high_dir = os.path.join(test_dir, 'high')
 
-    # Get file extension mapping
-    low_files = {os.path.splitext(f)[0]: f for f in os.listdir(low_dir)
-                 if f.endswith(('.png', '.jpg', '.jpeg'))}
-    high_files = {os.path.splitext(f)[0]: f for f in os.listdir(high_dir)
-                  if f.endswith(('.png', '.jpg', '.jpeg'))}
+    # Get file mapping with directory structure (person_name/image_name.ext -> full_path)
+    low_files = {}
+    high_files = {}
+    
+    for person_dir in os.listdir(low_dir):
+        person_path = os.path.join(low_dir, person_dir)
+        if os.path.isdir(person_path):
+            for img_file in os.listdir(person_path):
+                if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_name = os.path.splitext(img_file)[0]
+                    key = f"{person_dir}/{img_name}"
+                    low_files[key] = os.path.join(person_path, img_file)
+    
+    for person_dir in os.listdir(high_dir):
+        person_path = os.path.join(high_dir, person_dir)
+        if os.path.isdir(person_path):
+            for img_file in os.listdir(person_path):
+                if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_name = os.path.splitext(img_file)[0]
+                    key = f"{person_dir}/{img_name}"
+                    high_files[key] = os.path.join(person_path, img_file)
 
     # Storage for failure cases
     failure_cases = []
@@ -735,16 +793,14 @@ def failure_case_analysis(
     print("\nSearching for failure cases...")
     for low_name, high_name in tqdm(genuine_pairs, desc="Processing pairs"):
         try:
-            # Get filenames
-            low_file = low_files.get(low_name)
-            high_file = high_files.get(high_name)
+            # Get file paths
+            low_path = low_files.get(low_name)
+            high_path = high_files.get(high_name)
 
-            if low_file is None or high_file is None:
+            if low_path is None or high_path is None:
                 continue
 
-            # Load images
-            low_path = os.path.join(low_dir, low_file)
-            high_path = os.path.join(high_dir, high_file)
+            # Load images (paths are already complete)
 
             low_img = Image.open(low_path).convert('RGB')
             high_img = Image.open(high_path).convert('RGB')

@@ -23,9 +23,10 @@ import os
 import argparse
 import random
 from pathlib import Path
+from collections import defaultdict
 
 
-def generate_pairs(test_dir, num_pairs=1000, output_file='pairs.txt', seed=42):
+def generate_pairs(test_dir, num_pairs=1000, output_file='pairs.txt', seed=42, min_images_per_person=1):
     """
     Generate genuine and impostor pairs for face verification evaluation.
 
@@ -34,6 +35,7 @@ def generate_pairs(test_dir, num_pairs=1000, output_file='pairs.txt', seed=42):
         num_pairs: Number of pairs of each type (genuine and impostor)
         output_file: Output file path for pairs.txt
         seed: Random seed for reproducibility
+        min_images_per_person: Minimum number of images required per person
 
     Returns:
         tuple: (num_genuine, num_impostor) pairs generated

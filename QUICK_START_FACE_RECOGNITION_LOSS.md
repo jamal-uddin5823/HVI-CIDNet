@@ -42,7 +42,7 @@ For best results, download pre-trained AdaFace weights:
 
 ```bash
 # Create directory for pretrained weights
-mkdir -p pretrained/adaface
+mkdir -p weights/adaface
 
 # Download AdaFace IR-50 weights (WebFace4M)
 # Visit: https://github.com/mk-minchul/AdaFace

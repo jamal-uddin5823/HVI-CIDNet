@@ -149,7 +149,7 @@ echo "========================================================================"
 echo "Creating genuine and impostor pairs following LFW protocol..."
 echo ""
 
-PAIRS_FILE="./pairs_lfw.txt"
+PAIRS_FILE="./pairs.txt"
 
 if [ ! -f "$PAIRS_FILE" ]; then
     python generate_lfw_pairs.py \
