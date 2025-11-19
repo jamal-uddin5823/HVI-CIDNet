@@ -193,7 +193,9 @@ fi
 
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
     echo ""
+    echo "========================================================================"
     echo "Evaluating: $config"
+    echo "========================================================================"
 
     MODEL="./weights/ablation/$config/epoch_$EPOCHS.pth"
     echo "  Looking for model: $MODEL"
@@ -202,41 +204,57 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
         echo "  ✓ Model found"
         if [ -f "$ADAFACE_WEIGHTS" ]; then
             echo "  ✓ AdaFace weights found"
+
+            # Create output directory
+            mkdir -p ./results/ablation/$config
+
             # Use pairs-based evaluation if pairs file exists
             if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+                echo "  ✓ Pairs file found ($PAIRS_FILE)"
                 echo "  → Running pairs-based face verification evaluation..."
+                echo ""
+
                 python eval_face_verification.py \
                     --model=$MODEL \
                     --test_dir=$DATASET_DIR/test \
                     --pairs_file=$PAIRS_FILE \
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").txt 2>&1
+                    --output_dir=./results/ablation/$config
 
                 if [ $? -eq 0 ]; then
-                    echo "  ✓ Evaluation completed"
+                    echo ""
+                    echo "  ✓ Evaluation completed successfully"
+                    echo "  Results saved to: ./results/ablation/$config"
                 else
+                    echo ""
                     echo "  ✗ Evaluation failed with exit code $?"
+                    echo "  Check error messages above"
                 fi
             else
+                echo "  ⚠ Pairs file not found, using legacy evaluation mode"
                 echo "  → Running legacy face verification evaluation..."
-                # Fallback to legacy evaluation
+                echo "    (Note: This only computes genuine pair metrics, not EER/TAR)"
+                echo ""
+
                 python eval_face_verification.py \
                     --model=$MODEL \
                     --test_dir=$DATASET_DIR/test \
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").txt 2>&1
+                    --output_dir=./results/ablation/$config
 
                 if [ $? -eq 0 ]; then
+                    echo ""
                     echo "  ✓ Evaluation completed"
                 else
+                    echo ""
                     echo "  ✗ Evaluation failed with exit code $?"
                 fi
-                   
             fi
         else
-            echo "  ✗ Skipping face verification (AdaFace weights not found: $ADAFACE_WEIGHTS)"
+            echo "  ✗ AdaFace weights not found: $ADAFACE_WEIGHTS"
+            echo "  Skipping face verification evaluation"
         fi
     else
         echo "  ✗ Model not found - did training complete successfully?"
