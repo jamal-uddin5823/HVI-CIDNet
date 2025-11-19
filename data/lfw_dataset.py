@@ -5,17 +5,28 @@ This module provides PyTorch Dataset classes for the LFW dataset with
 synthetic low-light images, enabling face recognition-aware low-light
 image enhancement training.
 
-Dataset Structure:
+Dataset Structure (supports both flat and LFW subdirectory formats):
+
+    Option 1: LFW person subdirectories (recommended)
     LFW_lowlight/
     ├── train/
-    │   ├── low/      # Synthetic low-light faces
-    │   └── high/     # Original faces (ground truth)
-    ├── val/
     │   ├── low/
-    │   └── high/
+    │   │   ├── George_W_Bush/
+    │   │   │   ├── George_W_Bush_0001.png
+    │   │   │   └── George_W_Bush_0002.png
+    │   │   └── Colin_Powell/
+    │   │       └── Colin_Powell_0001.png
+    │   └── high/ (same structure)
+    ├── val/
     └── test/
-        ├── low/
-        └── high/
+
+    Option 2: Flat structure (legacy, backward compatible)
+    LFW_lowlight/
+    ├── train/
+    │   ├── low/      # All low-light images in one folder
+    │   └── high/     # All ground truth images in one folder
+    ├── val/
+    └── test/
 
 Usage:
     from data.lfw_dataset import LFWDatasetFromFolder
@@ -71,9 +82,31 @@ class LFWDatasetFromFolder(data.Dataset):
         if not os.path.exists(self.high_folder):
             raise FileNotFoundError(f"Ground truth directory not found: {self.high_folder}")
 
-        # Load filenames
-        self.low_filenames = sorted([x for x in listdir(self.low_folder) if is_image_file(x)])
-        self.high_filenames = sorted([x for x in listdir(self.high_folder) if is_image_file(x)])
+        # Load filenames (handles both flat structure and LFW person subdirectories)
+        def collect_image_files(directory):
+            """Recursively collect all image files, preserving relative paths"""
+            image_files = []
+            # Check if using subdirectories (LFW structure)
+            has_subdirs = any(os.path.isdir(join(directory, d)) for d in listdir(directory))
+
+            if has_subdirs:
+                # Scan subdirectories (e.g., George_W_Bush/)
+                for person_name in sorted(listdir(directory)):
+                    person_dir = join(directory, person_name)
+                    if not os.path.isdir(person_dir):
+                        continue
+                    for filename in sorted(listdir(person_dir)):
+                        if is_image_file(filename):
+                            # Store relative path: person/filename
+                            image_files.append(join(person_name, filename))
+            else:
+                # Flat structure (legacy)
+                image_files = sorted([x for x in listdir(directory) if is_image_file(x)])
+
+            return image_files
+
+        self.low_filenames = collect_image_files(self.low_folder)
+        self.high_filenames = collect_image_files(self.high_folder)
 
         # Verify paired data
         if len(self.low_filenames) != len(self.high_filenames):
@@ -153,9 +186,31 @@ class LFWDatasetFromFolderEval(data.Dataset):
         if not os.path.exists(self.high_folder):
             raise FileNotFoundError(f"Ground truth directory not found: {self.high_folder}")
 
-        # Load filenames (sorted for consistency)
-        self.low_filenames = sorted([x for x in listdir(self.low_folder) if is_image_file(x)])
-        self.high_filenames = sorted([x for x in listdir(self.high_folder) if is_image_file(x)])
+        # Load filenames (handles both flat structure and LFW person subdirectories)
+        def collect_image_files(directory):
+            """Recursively collect all image files, preserving relative paths"""
+            image_files = []
+            # Check if using subdirectories (LFW structure)
+            has_subdirs = any(os.path.isdir(join(directory, d)) for d in listdir(directory))
+
+            if has_subdirs:
+                # Scan subdirectories (e.g., George_W_Bush/)
+                for person_name in sorted(listdir(directory)):
+                    person_dir = join(directory, person_name)
+                    if not os.path.isdir(person_dir):
+                        continue
+                    for filename in sorted(listdir(person_dir)):
+                        if is_image_file(filename):
+                            # Store relative path: person/filename
+                            image_files.append(join(person_name, filename))
+            else:
+                # Flat structure (legacy)
+                image_files = sorted([x for x in listdir(directory) if is_image_file(x)])
+
+            return image_files
+
+        self.low_filenames = collect_image_files(self.low_folder)
+        self.high_filenames = collect_image_files(self.high_folder)
 
         self.num_images = min(len(self.low_filenames), len(self.high_filenames))
 
