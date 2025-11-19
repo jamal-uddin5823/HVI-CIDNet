@@ -310,10 +310,48 @@ fi
 echo ""
 echo "Next steps:"
 echo "1. Analyze detailed results in ./results/ablation/*/face_verification_results.txt"
-echo "2. Create graphs showing:"
-echo "   - FR loss weight vs. genuine similarity"
-echo "   - FR loss weight vs. EER (if pairs-based evaluation)"
-echo "   - TAR/FAR curves for each configuration"
+echo "2. Use generated figures in ./results/ablation/figures/ for thesis"
 echo "3. Include visual comparisons in thesis (enhanced face images)"
 echo "4. Report verification improvements in results section"
+echo ""
+
+# Generate visualizations
+echo ""
+echo "========================================================================"
+echo "Generating Visualizations for Thesis"
+echo "========================================================================"
+echo ""
+
+if command -v python &> /dev/null; then
+    echo "Creating publication-quality figures from ablation study results..."
+    echo ""
+
+    python plot_ablation_results.py \
+        --results_dir=./results/ablation \
+        --output_dir=./results/ablation/figures
+
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo "✓ Visualizations generated successfully!"
+        echo ""
+        echo "Figures saved to: ./results/ablation/figures/"
+        echo ""
+        echo "Generated plots:"
+        echo "  1. fr_weight_vs_verification_metrics.png - Key verification metrics vs FR weight"
+        echo "  2. fr_weight_vs_image_quality.png       - PSNR/SSIM vs FR weight"
+        echo "  3. comparison_bars.png                  - Bar chart comparison of all configs"
+        echo "  4. quality_vs_verification_tradeoff.png - Trade-off analysis"
+        echo "  5. summary_figure.png                   - Comprehensive 6-panel summary"
+        echo ""
+        echo "These figures are publication-ready for your thesis!"
+    else
+        echo ""
+        echo "⚠ Failed to generate visualizations"
+        echo "  You can manually run: python plot_ablation_results.py --results_dir=./results/ablation"
+    fi
+else
+    echo "⚠ Python not found in PATH. Skipping visualization generation."
+    echo "  Install Python and run: python plot_ablation_results.py --results_dir=./results/ablation"
+fi
+
 echo ""
