@@ -181,13 +181,14 @@ def compute_face_similarity(feat1, feat2):
     return similarity
 
 
-def enhance_image(model, img_tensor, device='cuda'):
+def enhance_image(model, img_tensor, device='cuda', target_size=None):
     """Enhance a low-light image using CIDNet
 
     Args:
         model: CIDNet model
         img_tensor: Input image tensor (1, 3, H, W)
         device: Device
+        target_size: Optional (H, W) to resize output to match
 
     Returns:
         Enhanced image tensor (1, 3, H, W)
@@ -196,6 +197,11 @@ def enhance_image(model, img_tensor, device='cuda'):
         img_tensor = img_tensor.to(device)
         enhanced = model(img_tensor)
         enhanced = torch.clamp(enhanced, 0, 1)
+
+        # Resize to target size if specified (to match GT dimensions)
+        if target_size is not None and enhanced.shape[2:] != target_size:
+            enhanced = F.interpolate(enhanced, size=target_size, mode='bilinear', align_corners=False)
+
     return enhanced
 
 
@@ -317,8 +323,8 @@ def evaluate_face_verification_with_pairs(
             low_tensor = to_tensor(low_img).unsqueeze(0).to(device)
             high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
 
-            # Enhance
-            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device)
+            # Enhance (resize to match GT dimensions)
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
 
             # Compute PSNR/SSIM (only for genuine pairs where they match)
             if low_name == high_name:
@@ -375,8 +381,8 @@ def evaluate_face_verification_with_pairs(
             low_tensor = to_tensor(low_img).unsqueeze(0).to(device)
             high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
 
-            # Enhance
-            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device)
+            # Enhance (resize to match GT dimensions)
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
 
             # Preprocess for face recognition
             low_face = preprocess_for_face_recognizer(low_tensor)
@@ -638,8 +644,8 @@ def evaluate_face_verification(
             high_img = Image.open(high_path).convert('RGB')
             high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
 
-            # Enhance low-light image
-            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device)
+            # Enhance low-light image (resize to match GT dimensions)
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
 
             # Compute PSNR/SSIM between enhanced and GT
             psnr = compute_psnr(enhanced_tensor, high_tensor)
