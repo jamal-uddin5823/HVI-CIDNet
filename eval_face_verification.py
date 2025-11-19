@@ -323,6 +323,12 @@ def evaluate_face_verification_with_pairs(
             low_tensor = to_tensor(low_img).unsqueeze(0).to(device)
             high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
 
+            # Resize to dimensions that are multiples of 32 (prevents ResNet feature map misalignment)
+            target_h = ((high_tensor.shape[2] + 31) // 32) * 32
+            target_w = ((high_tensor.shape[3] + 31) // 32) * 32
+            low_tensor = F.interpolate(low_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
+            high_tensor = F.interpolate(high_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
+
             # Enhance (resize to match GT dimensions)
             enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
 
@@ -646,13 +652,21 @@ def evaluate_face_verification(
 
             # Debug: Check if sizes match
             if idx == 0:  # Only print for first image
-                print(f"\nDebug - Image sizes:")
+                print(f"\nDebug - Original image sizes:")
                 print(f"  Low:  {low_tensor.shape}")
                 print(f"  High: {high_tensor.shape}")
 
-            # Ensure low also matches high size (in case they differ)
-            if low_tensor.shape != high_tensor.shape:
-                low_tensor = F.interpolate(low_tensor, size=high_tensor.shape[2:], mode='bilinear', align_corners=False)
+            # CRITICAL FIX: Resize to dimensions that are multiples of 32
+            # This ensures consistent feature map sizes in ResNet layers (stride-2 operations)
+            # 125x94 -> 128x96 (nearest multiples of 32)
+            target_h = ((high_tensor.shape[2] + 31) // 32) * 32
+            target_w = ((high_tensor.shape[3] + 31) // 32) * 32
+
+            if idx == 0:
+                print(f"  Resizing to {target_h}x{target_w} (multiples of 32)")
+
+            low_tensor = F.interpolate(low_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
+            high_tensor = F.interpolate(high_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
 
             # Enhance low-light image (resize to match GT dimensions)
             enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
