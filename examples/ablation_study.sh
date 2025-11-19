@@ -195,11 +195,15 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
     echo "Evaluating: $config"
 
     MODEL="./weights/ablation/$config/epoch_$EPOCHS.pth"
+    echo "  Looking for model: $MODEL"
 
     if [ -f "$MODEL" ]; then
+        echo "  ✓ Model found"
         if [ -f "$ADAFACE_WEIGHTS" ]; then
+            echo "  ✓ AdaFace weights found"
             # Use pairs-based evaluation if pairs file exists
             if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+                echo "  → Running pairs-based face verification evaluation..."
                 python eval_face_verification.py \
                     --model=$MODEL \
                     --test_dir=$DATASET_DIR/test \
@@ -207,7 +211,14 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
                     --output_dir=./results/ablation/$config
+
+                if [ $? -eq 0 ]; then
+                    echo "  ✓ Evaluation completed"
+                else
+                    echo "  ✗ Evaluation failed with exit code $?"
+                fi
             else
+                echo "  → Running legacy face verification evaluation..."
                 # Fallback to legacy evaluation
                 python eval_face_verification.py \
                     --model=$MODEL \
@@ -215,12 +226,19 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
                     --output_dir=./results/ablation/$config
+
+                if [ $? -eq 0 ]; then
+                    echo "  ✓ Evaluation completed"
+                else
+                    echo "  ✗ Evaluation failed with exit code $?"
+                fi
             fi
         else
-            echo "⚠ Skipping face verification for $config (no AdaFace weights)"
+            echo "  ✗ Skipping face verification (AdaFace weights not found: $ADAFACE_WEIGHTS)"
         fi
     else
-        echo "⚠ Model not found: $MODEL"
+        echo "  ✗ Model not found - did training complete successfully?"
+        echo "     Expected location: $MODEL"
     fi
 done
 
@@ -230,6 +248,33 @@ echo "========================================================================"
 echo "Ablation Study Results - Face Recognition Metrics"
 echo "========================================================================"
 echo ""
+
+# Check if ANY results exist
+RESULTS_FOUND=0
+for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
+    RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
+    if [ -f "$RESULT_FILE" ]; then
+        RESULTS_FOUND=1
+        break
+    fi
+done
+
+if [ $RESULTS_FOUND -eq 0 ]; then
+    echo "⚠ WARNING: No evaluation results found!"
+    echo ""
+    echo "Possible causes:"
+    echo "1. Training did not complete successfully (models not saved)"
+    echo "2. Evaluation failed (check error messages above)"
+    echo "3. Test dataset not available at: $DATASET_DIR/test"
+    echo "4. AdaFace weights not found at: $ADAFACE_WEIGHTS"
+    echo ""
+    echo "Please check:"
+    echo "  - Model weights should be at: ./weights/ablation/<config>/epoch_$EPOCHS.pth"
+    echo "  - Test dataset should be at: $DATASET_DIR/test/low and $DATASET_DIR/test/high"
+    echo "  - AdaFace weights at: $ADAFACE_WEIGHTS"
+    echo ""
+    exit 1
+fi
 
 # Check if using pairs-based evaluation (has EER metrics)
 if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
