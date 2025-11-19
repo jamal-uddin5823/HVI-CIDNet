@@ -51,6 +51,10 @@ def compute_psnr(pred_tensor, target_tensor):
     Returns:
         float: PSNR value
     """
+    # Ensure same size by resizing pred to match target
+    if pred_tensor.shape != target_tensor.shape:
+        pred_tensor = F.interpolate(pred_tensor, size=target_tensor.shape[2:], mode='bilinear', align_corners=False)
+
     # Convert tensors to numpy arrays in range [0, 255]
     pred_np = (pred_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
     target_np = (target_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
@@ -72,6 +76,10 @@ def compute_ssim(pred_tensor, target_tensor):
     Returns:
         float: SSIM value
     """
+    # Ensure same size by resizing pred to match target
+    if pred_tensor.shape != target_tensor.shape:
+        pred_tensor = F.interpolate(pred_tensor, size=target_tensor.shape[2:], mode='bilinear', align_corners=False)
+
     # Convert tensors to numpy arrays in range [0, 255]
     pred_np = (pred_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
     target_np = (target_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
@@ -99,15 +107,23 @@ def load_face_recognition_model(arch='ir_50', weights_path=None, device='cuda'):
     print(f"Loading face recognition model ({arch})...")
     model = build_adaface(arch).to(device)
 
-    if weights_path and os.path.exists(weights_path):
-        state_dict = torch.load(weights_path, map_location=device)
-        if 'state_dict' in state_dict:
-            state_dict = state_dict['state_dict']
-        model.load_state_dict(state_dict, strict=False)
-        print(f"  ✓ Loaded weights from {weights_path}")
+    if weights_path:
+        if os.path.exists(weights_path):
+            try:
+                state_dict = torch.load(weights_path, map_location=device)
+                if 'state_dict' in state_dict:
+                    state_dict = state_dict['state_dict']
+                model.load_state_dict(state_dict, strict=False)
+                print(f"  ✓ Loaded weights from {weights_path}")
+            except Exception as e:
+                print(f"  ✗ Error loading weights: {e}")
+                print(f"  ! Using random initialization")
+        else:
+            print(f"  ✗ Weights file not found: {weights_path}")
+            print(f"  ! Using random initialization (for testing only)")
+            print(f"  WARNING: For real evaluation, download AdaFace weights")
     else:
-        print("  ! Using random initialization (for testing only)")
-        print("  WARNING: For real evaluation, download AdaFace weights")
+        print("  ! No weights path provided, using random initialization")
 
     model.eval()
     for param in model.parameters():
@@ -688,17 +704,24 @@ def evaluate_face_verification(
     print(f"  Improvement:     {results['similarity_improvement']:.4f}")
 
     # Verification accuracy (using threshold)
-    low_correct = sum([1 for s in similarities_low if s >= threshold])
-    enhanced_correct = sum([1 for s in similarities_enhanced if s >= threshold])
+    if len(similarities_low) > 0 and len(similarities_enhanced) > 0:
+        low_correct = sum([1 for s in similarities_low if s >= threshold])
+        enhanced_correct = sum([1 for s in similarities_enhanced if s >= threshold])
 
-    results['verification_acc_low'] = low_correct / len(similarities_low) * 100
-    results['verification_acc_enhanced'] = enhanced_correct / len(similarities_enhanced) * 100
-    results['verification_improvement'] = results['verification_acc_enhanced'] - results['verification_acc_low']
+        results['verification_acc_low'] = low_correct / len(similarities_low) * 100
+        results['verification_acc_enhanced'] = enhanced_correct / len(similarities_enhanced) * 100
+        results['verification_improvement'] = results['verification_acc_enhanced'] - results['verification_acc_low']
 
-    print(f"\nVerification Accuracy (threshold={threshold}):")
-    print(f"  Low-light:  {results['verification_acc_low']:.2f}%")
-    print(f"  Enhanced:   {results['verification_acc_enhanced']:.2f}%")
-    print(f"  Improvement: {results['verification_improvement']:.2f}%")
+        print(f"\nVerification Accuracy (threshold={threshold}):")
+        print(f"  Low-light:  {results['verification_acc_low']:.2f}%")
+        print(f"  Enhanced:   {results['verification_acc_enhanced']:.2f}%")
+        print(f"  Improvement: {results['verification_improvement']:.2f}%")
+    else:
+        print(f"\n⚠ Warning: No valid similarity scores computed")
+        print(f"  All image pairs failed processing - check error messages above")
+        results['verification_acc_low'] = 0.0
+        results['verification_acc_enhanced'] = 0.0
+        results['verification_improvement'] = 0.0
 
     # Save results
     if save_results:
