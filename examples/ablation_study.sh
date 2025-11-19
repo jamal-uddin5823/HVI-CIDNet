@@ -220,7 +220,7 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
                     --pairs_file=$PAIRS_FILE \
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config
+                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").log 2>&1
 
                 if [ $? -eq 0 ]; then
                     echo ""
@@ -242,7 +242,7 @@ for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
                     --test_dir=$DATASET_DIR/test \
                     --face_weights=$ADAFACE_WEIGHTS \
                     --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config
+                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").log 2>&1
 
                 if [ $? -eq 0 ]; then
                     echo ""

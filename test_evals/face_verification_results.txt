@@ -1,0 +1,19 @@
+Face Verification Evaluation Results
+======================================================================
+
+Test directory: ./datasets/LFW_lowlight/test
+Number of pairs: 10
+
+Image Quality Metrics:
+  PSNR: 22.59 ± 3.27 dB
+  SSIM: 0.7769 ± 0.0273
+
+Face Similarity Metrics:
+  Low-light → GT:  0.5028 ± 0.2495
+  Enhanced → GT:   0.9316 ± 0.0677
+  Improvement:     0.4288
+
+Verification Accuracy (threshold=0.5):
+  Low-light:  50.00%
+  Enhanced:   100.00%
+  Improvement: 50.00%

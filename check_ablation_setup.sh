@@ -10,7 +10,7 @@ echo ""
 # Configuration (should match ablation_study.sh)
 EPOCHS=50
 DATASET_DIR="./datasets/LFW_lowlight"
-ADAFACE_WEIGHTS="./pretrained/adaface/adaface_ir50_webface4m.ckpt"
+ADAFACE_WEIGHTS="./weights/adaface/adaface_ir50_webface4m.ckpt"
 
 ISSUES_FOUND=0
 
@@ -68,7 +68,7 @@ else
     echo "    https://github.com/mk-minchul/AdaFace/releases/download/v1.0/adaface_ir50_webface4m.ckpt"
     echo ""
     echo "  Or run:"
-    echo "    mkdir -p ./pretrained/adaface"
+    echo "    mkdir -p ./weights/adaface"
     echo "    wget -O $ADAFACE_WEIGHTS \\"
     echo "      https://github.com/mk-minchul/AdaFace/releases/download/v1.0/adaface_ir50_webface4m.ckpt"
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
