@@ -644,8 +644,22 @@ def evaluate_face_verification(
             high_img = Image.open(high_path).convert('RGB')
             high_tensor = to_tensor(high_img).unsqueeze(0).to(device)
 
+            # Debug: Check if sizes match
+            if idx == 0:  # Only print for first image
+                print(f"\nDebug - Image sizes:")
+                print(f"  Low:  {low_tensor.shape}")
+                print(f"  High: {high_tensor.shape}")
+
+            # Ensure low also matches high size (in case they differ)
+            if low_tensor.shape != high_tensor.shape:
+                low_tensor = F.interpolate(low_tensor, size=high_tensor.shape[2:], mode='bilinear', align_corners=False)
+
             # Enhance low-light image (resize to match GT dimensions)
             enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
+
+            # Debug: Verify all sizes match
+            if idx == 0:
+                print(f"  Enhanced: {enhanced_tensor.shape}")
 
             # Compute PSNR/SSIM between enhanced and GT
             psnr = compute_psnr(enhanced_tensor, high_tensor)
@@ -657,6 +671,13 @@ def evaluate_face_verification(
             low_face = preprocess_for_face_recognizer(low_tensor)
             enhanced_face = preprocess_for_face_recognizer(enhanced_tensor)
             high_face = preprocess_for_face_recognizer(high_tensor)
+
+            # Debug: Check preprocessed sizes
+            if idx == 0:
+                print(f"\nDebug - Preprocessed for AdaFace:")
+                print(f"  Low face:  {low_face.shape}")
+                print(f"  Enh face:  {enhanced_face.shape}")
+                print(f"  High face: {high_face.shape}")
 
             # Extract face features
             with torch.no_grad():
