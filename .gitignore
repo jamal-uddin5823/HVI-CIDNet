@@ -159,10 +159,13 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-results
+
 output
 weights
 flagged
 output_hf
 
 datasets/
+
+
+nohup.out
