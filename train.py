@@ -78,10 +78,26 @@ def train(epoch):
         loss.backward()
         optimizer.step()
         
-        loss_print = loss_print + loss.item()
-        loss_last_10 = loss_last_10 + loss.item()
+        # Store loss value and update counters
+        loss_value = loss.item()
+        
+        # Check for NaN/Inf
+        if not torch.isfinite(loss).all():
+            print(f"WARNING: Non-finite loss detected at iteration {iter}")
+            print(f"  loss_rgb: {loss_rgb.item()}")
+            print(f"  loss_hvi: {loss_hvi.item()}")
+            if opt.use_face_loss and 'fr_loss_value' in locals():
+                print(f"  fr_loss_value: {fr_loss_value.item()}")
+            print(f"  output_rgb range: [{output_rgb.min().item()}, {output_rgb.max().item()}]")
+            print(f"  gt_rgb range: [{gt_rgb.min().item()}, {gt_rgb.max().item()}]")
+            raise ValueError("NaN or Inf loss encountered!")
+        
+        loss_print = loss_print + loss_value
+        loss_last_10 = loss_last_10 + loss_value
         pic_cnt += 1
         pic_last_10 += 1
+        
+        # Save sample images at end of epoch (before cleanup)
         if iter == train_len:
             print("===> Epoch[{}]: Loss: {:.4f} || Learning rate: lr={}.".format(epoch,
                 loss_last_10/pic_last_10, optimizer.param_groups[0]['lr']))
@@ -295,21 +311,38 @@ if __name__ == '__main__':
                 label_dir = opt.data_valgt_lfw
                 norm_size = True
 
-            im_dir = opt.val_folder + output_folder + '*.png'
-            eval(model, testing_data_loader, model_out_path, opt.val_folder+output_folder, 
-                 norm_size=norm_size, LOL=opt.lol_v1, v2=opt.lolv2_real, alpha=0.8)
+            im_dir = opt.val_folder + output_folder + '**/*.png'
             
-            avg_psnr, avg_ssim, avg_lpips = metrics(im_dir, label_dir, use_GT_mean=False)
-            print("===> Avg.PSNR: {:.4f} dB ".format(avg_psnr))
-            print("===> Avg.SSIM: {:.4f} ".format(avg_ssim))
-            print("===> Avg.LPIPS: {:.4f} ".format(avg_lpips))
-            psnr.append(avg_psnr)
-            ssim.append(avg_ssim)
-            lpips.append(avg_lpips)
-            print(psnr)
-            print(ssim)
-            print(lpips)
-        torch.cuda.empty_cache()
+            # Clear GPU memory before evaluation
+            torch.cuda.empty_cache()
+            
+            try:
+                eval(model, testing_data_loader, model_out_path, opt.val_folder+output_folder, 
+                     norm_size=norm_size, LOL=opt.lol_v1, v2=opt.lolv2_real, alpha=0.8)
+                
+                # Clear GPU memory after evaluation
+                torch.cuda.empty_cache()
+                
+                avg_psnr, avg_ssim, avg_lpips = metrics(im_dir, label_dir, use_GT_mean=False)
+                print("===> Avg.PSNR: {:.4f} dB ".format(avg_psnr))
+                print("===> Avg.SSIM: {:.4f} ".format(avg_ssim))
+                print("===> Avg.LPIPS: {:.4f} ".format(avg_lpips))
+                psnr.append(avg_psnr)
+                ssim.append(avg_ssim)
+                lpips.append(avg_lpips)
+                print(psnr)
+                print(ssim)
+                print(lpips)
+            except Exception as e:
+                print(f"===> Validation failed at epoch {epoch}: {str(e)}")
+                print("===> Continuing training...")
+                # Append placeholder values
+                psnr.append(0.0)
+                ssim.append(0.0)
+                lpips.append(1.0)
+            
+            # Clear GPU memory after validation
+            torch.cuda.empty_cache()
     
     now = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     with open(f"./results/training/metrics{now}.md", "w") as f:

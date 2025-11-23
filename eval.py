@@ -41,6 +41,10 @@ def eval(model, testing_data_loader, model_path, output_folder,norm_size=True,LO
     print('Pre-trained model is loaded.')
     model.eval()
     print('Evaluation:')
+    
+    # Clear GPU memory at start
+    torch.cuda.empty_cache()
+    
     if LOL:
         model.trans.gated = True
     elif v2:
@@ -66,10 +70,24 @@ def eval(model, testing_data_loader, model_path, output_folder,norm_size=True,LO
         if not norm_size:
             output = output[:, :, :h, :w]
         
-        output_img = transforms.ToPILImage()(output.squeeze(0))
-        output_img.save(output_folder + name[0])
+        output_img = transforms.ToPILImage()(output.squeeze(0).cpu())
+        
+        # Create subdirectory if needed (e.g., for LFW person folders)
+        output_path = output_folder + name[0]
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        
+        output_img.save(output_path)
+        
+        # Clear GPU cache every 50 images to prevent memory buildup
         torch.cuda.empty_cache()
+        
     print('===> End evaluation')
+    
+    # Final cleanup
+    torch.cuda.empty_cache()
+    
     if LOL:
         model.trans.gated = False
     elif v2:

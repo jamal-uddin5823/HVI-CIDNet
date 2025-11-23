@@ -110,8 +110,23 @@ echo "STEP 3/3: Extended Analysis (Optional)"
 echo "================================================================================"
 echo ""
 
-BASELINE_MODEL="./weights/ablation/baseline/epoch_50.pth"
-FR_MODEL="./weights/ablation/fr_weight_0.5/epoch_50.pth"
+# Check for models with D_weight variations
+BASELINE_MODEL=""
+FR_MODEL=""
+
+for d_weight in 1 1.5; do
+    if [ -f "./weights/ablation/baseline/d_${d_weight}/epoch_50.pth" ]; then
+        BASELINE_MODEL="./weights/ablation/baseline/d_${d_weight}/epoch_50.pth"
+        break
+    fi
+done
+
+for d_weight in 1 1.5; do
+    if [ -f "./weights/ablation/fr_weight_0.5/d_${d_weight}/epoch_50.pth" ]; then
+        FR_MODEL="./weights/ablation/fr_weight_0.5/d_${d_weight}/epoch_50.pth"
+        break
+    fi
+done
 
 if [ -f "extended_analysis.py" ] && [ -f "$BASELINE_MODEL" ] && [ -f "$FR_MODEL" ]; then
     echo "Running extended analysis (baseline vs FR=0.5)..."
@@ -159,11 +174,14 @@ echo ""
 echo "Generated files:"
 echo "----------------"
 echo ""
-echo "1. Individual model evaluations:"
-echo "   • ./results/full_evaluation/baseline/face_verification_results.txt"
-echo "   • ./results/full_evaluation/fr_weight_0.3/face_verification_results.txt"
-echo "   • ./results/full_evaluation/fr_weight_0.5/face_verification_results.txt"
-echo "   • ./results/full_evaluation/fr_weight_1.0/face_verification_results.txt"
+echo "1. Individual model evaluations (for each FR weight × D weight combination):"
+echo "   Example locations:"
+echo "   • ./results/full_evaluation/baseline_d1/face_verification_results.txt"
+echo "   • ./results/full_evaluation/baseline_d1.5/face_verification_results.txt"
+echo "   • ./results/full_evaluation/fr_weight_0.3_d1/face_verification_results.txt"
+echo "   • ./results/full_evaluation/fr_weight_0.5_d1/face_verification_results.txt"
+echo "   • ./results/full_evaluation/fr_weight_1.0_d1.5/face_verification_results.txt"
+echo "   (All 8 combinations evaluated)"
 echo ""
 echo "2. Comparison and statistics:"
 echo "   • ./results/full_evaluation/comparison_table.txt"

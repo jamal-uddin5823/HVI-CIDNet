@@ -2,6 +2,10 @@
 # Ablation Study: Test Different Face Recognition Loss Weights
 # This will help determine the optimal FR loss weight for your thesis
 
+# Exit immediately if any command fails
+set -e
+set -o pipefail
+
 echo "========================================================================"
 echo "Ablation Study: Face Recognition Loss Weights"
 echo "========================================================================"
@@ -10,6 +14,7 @@ echo "========================================================================"
 DATASET_DIR="./datasets/LFW_lowlight"
 BATCH_SIZE=8
 CROP_SIZE=256
+NUM_WORKERS=4  # Reduce workers to prevent segfaults
 
 # Check if dataset exists
 if [ ! -d "$DATASET_DIR" ]; then
@@ -63,11 +68,13 @@ echo ""
 # Function to train baseline (no FR loss)
 train_baseline() {
     NAME=$1
-    WEIGHTS_DIR="./weights/ablation/$NAME"
+    D_WEIGHT=$2
+    WEIGHTS_DIR="./weights/ablation/$NAME/d_${D_WEIGHT}"
 
     echo ""
     echo "========================================================================"
     echo "Training: $NAME"
+    echo "Training with D weight = $D_WEIGHT"
     echo "========================================================================"
 
     mkdir -p $WEIGHTS_DIR
@@ -82,23 +89,37 @@ train_baseline() {
         --cropSize=$CROP_SIZE \
         --nEpochs=$EPOCHS \
         --lr=$LR \
-        --snapshots=10 > logs/baseline_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
+        --D_weight=$D_WEIGHT \
+        --threads=4 \
+        --snapshots=10 > logs/baseline_d_${D_WEIGHT}_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
+
+    # Check if training succeeded
+    if [ $? -ne 0 ]; then
+        echo "✗ $NAME training FAILED! Check logs/baseline_d_${D_WEIGHT}_$NAME_*.log for details"
+        exit 1
+    fi
 
     # Move weights to ablation directory
-    mv ./weights/train/* $WEIGHTS_DIR/
-
-    echo "✓ $NAME training complete. Weights saved to: $WEIGHTS_DIR"
+    if [ -d "./weights/train" ] && [ "$(ls -A ./weights/train 2>/dev/null)" ]; then
+        mv ./weights/train/* $WEIGHTS_DIR/
+        echo "✓ $NAME training complete. Weights saved to: $WEIGHTS_DIR"
+    else
+        echo "✗ No weights found in ./weights/train - training may have crashed"
+        return 1
+    fi
 }
 
 # Function to train with FR loss
 train_with_fr() {
     NAME=$1
     FR_WEIGHT=$2
-    WEIGHTS_DIR="./weights/ablation/$NAME"
+    D_WEIGHT=$3
+    WEIGHTS_DIR="./weights/ablation/$NAME/d_${D_WEIGHT}"
 
     echo ""
     echo "========================================================================"
     echo "Training: $NAME (FR weight=$FR_WEIGHT)"
+    echo "Training with D weight = $D_WEIGHT"
     echo "========================================================================"
 
     mkdir -p $WEIGHTS_DIR
@@ -115,13 +136,25 @@ train_with_fr() {
         --lr=$LR \
         --use_face_loss \
         --FR_weight=$FR_WEIGHT \
+        --D_weight=$D_WEIGHT \
         $ADAFACE_ARG \
-        --snapshots=10 > logs/fr_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
+        --threads=4 \
+        --snapshots=10 > logs/fr_${FR_WEIGHT}_d_${D_WEIGHT}_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
+
+    # Check if training succeeded
+    if [ $? -ne 0 ]; then
+        echo "✗ $NAME training FAILED! Check logs/fr_${FR_WEIGHT}_d_${D_WEIGHT}_$NAME_*.log for details"
+        exit 1
+    fi
 
     # Move weights to ablation directory
-    mv ./weights/train/* $WEIGHTS_DIR/
-
-    echo "✓ $NAME training complete. Weights saved to: $WEIGHTS_DIR"
+    if [ -d "./weights/train" ] && [ "$(ls -A ./weights/train 2>/dev/null)" ]; then
+        mv ./weights/train/* $WEIGHTS_DIR/
+        echo "✓ $NAME training complete. Weights saved to: $WEIGHTS_DIR"
+    else
+        echo "✗ No weights found in ./weights/train - training may have crashed"
+        return 1
+    fi
 }
 
 # Run ablation experiments
@@ -129,17 +162,24 @@ echo ""
 echo "Starting ablation study..."
 echo ""
 
-# 1. Baseline (no FR loss)
-# train_baseline "baseline"
+#1. Baseline (no FR loss)
+for d_weight in 1 1.5; do
+    train_baseline "baseline" $d_weight
+done
 
-# 2. FR weight = 0.3
-# train_with_fr "fr_weight_0.3" 0.3
+#2. FR weight = 0.3
+for d_weight in 1 1.5; do
+    train_with_fr "fr_weight_0.3" 0.3 $d_weight
+done
 
-# 3. FR weight = 0.5 (recommended)
-# train_with_fr "fr_weight_0.5" 0.5
-
-# 4. FR weight = 1.0
-# train_with_fr "fr_weight_1.0" 1.0
+#3. FR weight = 0.5 (recommended)
+for d_weight in 1 1.5; do
+    train_with_fr "fr_weight_0.5" 0.5 $d_weight
+done
+#4. FR weight = 1.0
+for d_weight in 1 1.5; do
+    train_with_fr "fr_weight_1.0" 1.0 $d_weight
+done
 
 # Generate pairs for evaluation
 echo ""
@@ -158,9 +198,9 @@ if [ ! -f "$PAIRS_FILE" ]; then
         --output=$PAIRS_FILE
 
     if [ $? -ne 0 ]; then
-        echo "⚠ Failed to generate pairs file"
-        echo "  Will proceed without pairs-based evaluation"
-        PAIRS_FILE=""
+        echo "✗ Failed to generate pairs file - CRITICAL ERROR"
+        echo "  Cannot proceed without pairs file for evaluation"
+        exit 1
     else
         echo "✓ Pairs file generated: $PAIRS_FILE"
     fi
@@ -192,74 +232,79 @@ if [ ! -f "$ADAFACE_WEIGHTS" ]; then
 fi
 
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-    echo ""
-    echo "========================================================================"
-    echo "Evaluating: $config"
-    echo "========================================================================"
+    for d_weight in 1 1.5; do
+        config_name="${config}_d${d_weight}"
+        echo ""
+        echo "========================================================================"
+        echo "Evaluating: $config_name (FR config: $config, D_weight: $d_weight)"
+        echo "========================================================================"
 
-    MODEL="./weights/ablation/$config/epoch_$EPOCHS.pth"
-    echo "  Looking for model: $MODEL"
+        MODEL="./weights/ablation/$config/d_${d_weight}/epoch_$EPOCHS.pth"
+        echo "  Looking for model: $MODEL"
 
-    if [ -f "$MODEL" ]; then
-        echo "  ✓ Model found"
-        if [ -f "$ADAFACE_WEIGHTS" ]; then
-            echo "  ✓ AdaFace weights found"
+        if [ -f "$MODEL" ]; then
+            echo "  ✓ Model found"
+            if [ -f "$ADAFACE_WEIGHTS" ]; then
+                echo "  ✓ AdaFace weights found"
 
-            # Create output directory
-            mkdir -p ./results/ablation/$config
+                # Create output directory
+                mkdir -p ./results/ablation/$config_name
 
-            # Use pairs-based evaluation if pairs file exists
-            if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
-                echo "  ✓ Pairs file found ($PAIRS_FILE)"
-                echo "  → Running pairs-based face verification evaluation..."
-                echo ""
-
-                python eval_face_verification.py \
-                    --model=$MODEL \
-                    --test_dir=$DATASET_DIR/test \
-                    --pairs_file=$PAIRS_FILE \
-                    --face_weights=$ADAFACE_WEIGHTS \
-                    --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").log 2>&1
-
-                if [ $? -eq 0 ]; then
+                # Use pairs-based evaluation if pairs file exists
+                if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
+                    echo "  ✓ Pairs file found ($PAIRS_FILE)"
+                    echo "  → Running pairs-based face verification evaluation..."
                     echo ""
-                    echo "  ✓ Evaluation completed successfully"
-                    echo "  Results saved to: ./results/ablation/$config"
+
+                    python eval_face_verification.py \
+                        --model=$MODEL \
+                        --test_dir=$DATASET_DIR/test \
+                        --pairs_file=$PAIRS_FILE \
+                        --face_weights=$ADAFACE_WEIGHTS \
+                        --face_model=ir_50 \
+                        --output_dir=./results/ablation/$config_name > ./results/ablation/$config_name/face_verification_results_$(date +"%Y%m%d_%H%M%S").log 2>&1
+
+                    if [ $? -eq 0 ]; then
+                        echo ""
+                        echo "  ✓ Evaluation completed successfully"
+                        echo "  Results saved to: ./results/ablation/$config_name"
+                    else
+                        echo ""
+                        echo "  ✗ Evaluation failed with exit code $?"
+                        echo "  Check error messages above"
+                        exit 1
+                    fi
                 else
+                    echo "  ⚠ Pairs file not found, using legacy evaluation mode"
+                    echo "  → Running legacy face verification evaluation..."
+                    echo "    (Note: This only computes genuine pair metrics, not EER/TAR)"
                     echo ""
-                    echo "  ✗ Evaluation failed with exit code $?"
-                    echo "  Check error messages above"
+
+                    python eval_face_verification.py \
+                        --model=$MODEL \
+                        --test_dir=$DATASET_DIR/test \
+                        --face_weights=$ADAFACE_WEIGHTS \
+                        --face_model=ir_50 \
+                        --output_dir=./results/ablation/$config_name > ./results/ablation/$config_name/face_verification_results_$(date +"%Y%m%d_%H%M%S").log 2>&1
+
+                    if [ $? -eq 0 ]; then
+                        echo ""
+                        echo "  ✓ Evaluation completed"
+                    else
+                        echo ""
+                        echo "  ✗ Evaluation failed with exit code $?"
+                        exit 1
+                    fi
                 fi
             else
-                echo "  ⚠ Pairs file not found, using legacy evaluation mode"
-                echo "  → Running legacy face verification evaluation..."
-                echo "    (Note: This only computes genuine pair metrics, not EER/TAR)"
-                echo ""
-
-                python eval_face_verification.py \
-                    --model=$MODEL \
-                    --test_dir=$DATASET_DIR/test \
-                    --face_weights=$ADAFACE_WEIGHTS \
-                    --face_model=ir_50 \
-                    --output_dir=./results/ablation/$config > ./results/ablation/$config/face_verification_results_$(date +"%Y%m%d_%H%M%S").log 2>&1
-
-                if [ $? -eq 0 ]; then
-                    echo ""
-                    echo "  ✓ Evaluation completed"
-                else
-                    echo ""
-                    echo "  ✗ Evaluation failed with exit code $?"
-                fi
+                echo "  ✗ AdaFace weights not found: $ADAFACE_WEIGHTS"
+                echo "  Skipping face verification evaluation"
             fi
         else
-            echo "  ✗ AdaFace weights not found: $ADAFACE_WEIGHTS"
-            echo "  Skipping face verification evaluation"
+            echo "  ✗ Model not found - did training complete successfully?"
+            echo "     Expected location: $MODEL"
         fi
-    else
-        echo "  ✗ Model not found - did training complete successfully?"
-        echo "     Expected location: $MODEL"
-    fi
+    done
 done
 
 # Generate comparison table for thesis
@@ -272,11 +317,14 @@ echo ""
 # Check if ANY results exist
 RESULTS_FOUND=0
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-    RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
-    if [ -f "$RESULT_FILE" ]; then
-        RESULTS_FOUND=1
-        break
-    fi
+    for d_weight in 1 1.5; do
+        config_name="${config}_d${d_weight}"
+        RESULT_FILE="./results/ablation/$config_name/face_verification_results.txt"
+        if [ -f "$RESULT_FILE" ]; then
+            RESULTS_FOUND=1
+            break 2
+        fi
+    done
 done
 
 if [ $RESULTS_FOUND -eq 0 ]; then
@@ -300,43 +348,49 @@ fi
 if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
     echo "Pairs-Based Verification Results:"
     echo ""
-    echo "Configuration         | Genuine Sim | EER (%) | TAR@1% (%) | PSNR  | SSIM"
-    echo "---------------------+-------------+---------+------------+-------+------"
+    echo "Configuration              | D_weight | Genuine Sim | EER (%) | TAR@1% (%) | PSNR  | SSIM"
+    echo "--------------------------+----------+-------------+---------+------------+-------+------"
 
     for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-        RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
-        if [ -f "$RESULT_FILE" ]; then
-            # Extract metrics from pairs-based evaluation
-            GENUINE_SIM=$(grep "Enhanced avg similarity:" $RESULT_FILE | head -1 | awk '{print $4}' || echo "N/A")
-            EER=$(grep "Enhanced:" $RESULT_FILE | grep "EER" | awk '{print $2}' | tr -d '%' || echo "N/A")
-            TAR=$(grep "Enhanced:" $RESULT_FILE | grep "TAR @ FAR=1%" -A 1 | tail -1 | awk '{print $2}' | tr -d '%' || echo "N/A")
-            PSNR=$(grep "Average PSNR:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
-            SSIM=$(grep "Average SSIM:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+        for d_weight in 1 1.5; do
+            config_name="${config}_d${d_weight}"
+            RESULT_FILE="./results/ablation/$config_name/face_verification_results.txt"
+            if [ -f "$RESULT_FILE" ]; then
+                # Extract metrics from pairs-based evaluation
+                GENUINE_SIM=$(grep "Enhanced avg similarity:" $RESULT_FILE | head -1 | awk '{print $4}' || echo "N/A")
+                EER=$(grep "Enhanced:" $RESULT_FILE | grep "EER" | awk '{print $2}' | tr -d '%' || echo "N/A")
+                TAR=$(grep "Enhanced:" $RESULT_FILE | grep "TAR @ FAR=1%" -A 1 | tail -1 | awk '{print $2}' | tr -d '%' || echo "N/A")
+                PSNR=$(grep "Average PSNR:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+                SSIM=$(grep "Average SSIM:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
 
-            printf "%-20s | %-11s | %-7s | %-10s | %-5s | %-5s\n" "$config" "$GENUINE_SIM" "$EER" "$TAR" "$PSNR" "$SSIM"
-        else
-            printf "%-20s | Results not found\n" "$config"
-        fi
+                printf "%-25s | %-8s | %-11s | %-7s | %-10s | %-5s | %-5s\n" "$config" "$d_weight" "$GENUINE_SIM" "$EER" "$TAR" "$PSNR" "$SSIM"
+            else
+                printf "%-25s | %-8s | Results not found\n" "$config" "$d_weight"
+            fi
+        done
     done
 else
     echo "Legacy Evaluation Results:"
     echo ""
-    echo "Configuration         | Face Similarity | Improvement | PSNR  | SSIM"
-    echo "---------------------+----------------+-------------+-------+------"
+    echo "Configuration              | D_weight | Face Similarity | Improvement | PSNR  | SSIM"
+    echo "--------------------------+----------+----------------+-------------+-------+------"
 
     for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-        RESULT_FILE="./results/ablation/$config/face_verification_results.txt"
-        if [ -f "$RESULT_FILE" ]; then
-            # Extract metrics from legacy evaluation
-            FACE_SIM=$(grep "Enhanced.*GT:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
-            IMPROVEMENT=$(grep "Improvement:" $RESULT_FILE | head -1 | awk '{print $2}' || echo "N/A")
-            PSNR=$(grep "PSNR:" $RESULT_FILE | awk '{print $2}' | head -1 || echo "N/A")
-            SSIM=$(grep "SSIM:" $RESULT_FILE | awk '{print $2}' | head -1 || echo "N/A")
+        for d_weight in 1 1.5; do
+            config_name="${config}_d${d_weight}"
+            RESULT_FILE="./results/ablation/$config_name/face_verification_results.txt"
+            if [ -f "$RESULT_FILE" ]; then
+                # Extract metrics from legacy evaluation
+                FACE_SIM=$(grep "Enhanced.*GT:" $RESULT_FILE | awk '{print $3}' || echo "N/A")
+                IMPROVEMENT=$(grep "Improvement:" $RESULT_FILE | head -1 | awk '{print $2}' || echo "N/A")
+                PSNR=$(grep "PSNR:" $RESULT_FILE | awk '{print $2}' | head -1 || echo "N/A")
+                SSIM=$(grep "SSIM:" $RESULT_FILE | awk '{print $2}' | head -1 || echo "N/A")
 
-            printf "%-20s | %-14s | %-11s | %-5s | %-5s\n" "$config" "$FACE_SIM" "$IMPROVEMENT" "$PSNR" "$SSIM"
-        else
-            printf "%-20s | Results not found\n" "$config"
-        fi
+                printf "%-25s | %-8s | %-14s | %-11s | %-5s | %-5s\n" "$config" "$d_weight" "$FACE_SIM" "$IMPROVEMENT" "$PSNR" "$SSIM"
+            else
+                printf "%-25s | %-8s | Results not found\n" "$config" "$d_weight"
+            fi
+        done
     done
 fi
 
@@ -411,8 +465,9 @@ if command -v python &> /dev/null; then
         echo "These figures are publication-ready for your thesis!"
     else
         echo ""
-        echo "⚠ Failed to generate visualizations"
-        echo "  You can manually run: python plot_ablation_results.py --results_dir=./results/ablation"
+        echo "✗ Failed to generate visualizations - CRITICAL ERROR"
+        echo "  Check error log at: ./results/ablation/figures/plot_generation_*.txt"
+        exit 1
     fi
 else
     echo "⚠ Python not found in PATH. Skipping visualization generation."
