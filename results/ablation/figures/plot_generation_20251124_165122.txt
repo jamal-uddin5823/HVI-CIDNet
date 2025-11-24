@@ -1,0 +1,59 @@
+======================================================================
+Ablation Study Visualization Generator
+======================================================================
+Results directory: ./results/ablation
+Output directory:  ./results/ablation/figures
+
+Found 12 configurations:
+  • baseline_d0.5
+  • baseline_d1
+  • baseline_d1.5
+  • fr_weight_0.3_d0.5
+  • fr_weight_0.3_d1
+  • fr_weight_0.3_d1.5
+  • fr_weight_0.5_d0.5
+  • fr_weight_0.5_d1
+  • fr_weight_0.5_d1.5
+  • fr_weight_1.0_d0.5
+  • fr_weight_1.0_d1
+  • fr_weight_1.0_d1.5
+
+Parsing results...
+  ✓ baseline_d0.5
+  ✓ fr_weight_1.0_d1
+  ✓ fr_weight_0.5_d0.5
+  ✓ fr_weight_0.5_d1
+  ✓ baseline_d1.5
+  ✓ baseline_d1
+  ✓ fr_weight_0.3_d1
+  ✓ fr_weight_0.3_d1.5
+  ✓ fr_weight_1.0_d1.5
+  ✓ fr_weight_0.3_d0.5
+  ✓ fr_weight_1.0_d0.5
+  ✓ fr_weight_0.5_d1.5
+
+Successfully parsed 12 configurations
+
+Generating visualizations...
+
+✓ Saved: ./results/ablation/figures/fr_weight_vs_verification_metrics.png
+✓ Saved: ./results/ablation/figures/fr_weight_vs_image_quality.png
+✓ Saved: ./results/ablation/figures/comparison_bars.png
+✓ Saved: ./results/ablation/figures/quality_vs_verification_tradeoff.png
+✓ Saved: ./results/ablation/figures/summary_figure.png
+
+======================================================================
+Visualization complete!
+======================================================================
+
+Generated figures saved to: ./results/ablation/figures
+
+Files created:
+  • comparison_bars.png
+  • fr_weight_vs_image_quality.png
+  • fr_weight_vs_verification_metrics.png
+  • quality_vs_verification_tradeoff.png
+  • summary_figure.png
+
+These figures are ready to include in your thesis!
+

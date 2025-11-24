@@ -46,6 +46,21 @@ def train(epoch):
     torch.autograd.set_detect_anomaly(opt.grad_detect)
     for batch in tqdm(training_data_loader):
         im1, im2, path1, path2 = batch[0], batch[1], batch[2], batch[3]
+        
+        # Validate batch before processing
+        if torch.isnan(im1).any() or torch.isinf(im1).any():
+            print(f"Warning: Invalid input batch detected, skipping...")
+            continue
+        if torch.isnan(im2).any() or torch.isinf(im2).any():
+            print(f"Warning: Invalid GT batch detected, skipping...")
+            print(f"  GT range: [{im2.min()}, {im2.max()}]")
+            print(f"  Files: {path1[0]}, {path2[0]}")
+            continue
+        
+        # Clamp inputs to valid range
+        im1 = torch.clamp(im1, 0, 1)
+        im2 = torch.clamp(im2, 0, 1)
+        
         im1 = im1.cuda()
         im2 = im2.cuda()
         
@@ -84,13 +99,16 @@ def train(epoch):
         # Check for NaN/Inf
         if not torch.isfinite(loss).all():
             print(f"WARNING: Non-finite loss detected at iteration {iter}")
-            print(f"  loss_rgb: {loss_rgb.item()}")
-            print(f"  loss_hvi: {loss_hvi.item()}")
+            print(f"  loss_rgb: {loss_rgb.item() if torch.isfinite(loss_rgb) else 'NaN/Inf'}")
+            print(f"  loss_hvi: {loss_hvi.item() if torch.isfinite(loss_hvi) else 'NaN/Inf'}")
             if opt.use_face_loss and 'fr_loss_value' in locals():
-                print(f"  fr_loss_value: {fr_loss_value.item()}")
+                print(f"  fr_loss_value: {fr_loss_value.item() if torch.isfinite(fr_loss_value) else 'NaN/Inf'}")
             print(f"  output_rgb range: [{output_rgb.min().item()}, {output_rgb.max().item()}]")
             print(f"  gt_rgb range: [{gt_rgb.min().item()}, {gt_rgb.max().item()}]")
-            raise ValueError("NaN or Inf loss encountered!")
+            print(f"  input range: [{im1.min().item()}, {im1.max().item()}]")
+            print(f"  Batch files: {path1[0]}, {path2[0]}")
+            print(f"  Skipping this batch and continuing training...")
+            continue  # Skip this batch instead of crashing
         
         loss_print = loss_print + loss_value
         loss_last_10 = loss_last_10 + loss_value

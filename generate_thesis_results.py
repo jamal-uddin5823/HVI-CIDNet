@@ -200,7 +200,8 @@ def statistical_significance(baseline, model):
 def generate_comparison_table(results_dict, output_file):
     """Generate formatted comparison table"""
 
-    configs = ['baseline', 'fr_weight_0.3', 'fr_weight_0.5', 'fr_weight_1.0']
+    # Get all configurations from results_dict
+    configs = sorted(results_dict.keys())
 
     with open(output_file, 'w') as f:
         f.write("="*100 + "\n")
@@ -210,104 +211,136 @@ def generate_comparison_table(results_dict, output_file):
 
         # Table 1: Verification Performance
         f.write("TABLE 1: FACE VERIFICATION PERFORMANCE\n")
-        f.write("-"*100 + "\n")
-        f.write(f"{'Configuration':<20} | {'Genuine Sim':<12} | {'Impostor Sim':<12} | {'EER (%)':<10} | {'TAR@0.1%(%)':<12} | {'TAR@1%(%)':<12}\n")
-        f.write("-"*100 + "\n")
+        f.write("-"*120 + "\n")
+        f.write(f"{'Configuration':<25} | {'Genuine Sim':<12} | {'Impostor Sim':<12} | {'EER (%)':<10} | {'TAR@0.1%(%)':<12} | {'TAR@1%(%)':<12}\n")
+        f.write("-"*120 + "\n")
 
         for config in configs:
             if config in results_dict and results_dict[config]:
                 r = results_dict[config]
-                f.write(f"{config:<20} | {r['genuine_mean_enhanced']:>12.4f} | {r['impostor_mean_enhanced']:>12.4f} | "
+                f.write(f"{config:<25} | {r['genuine_mean_enhanced']:>12.4f} | {r['impostor_mean_enhanced']:>12.4f} | "
                        f"{r['eer_enhanced']:>10.2f} | {r['tar_001_enhanced']:>12.2f} | {r['tar_01_enhanced']:>12.2f}\n")
             else:
-                f.write(f"{config:<20} | {'N/A':<12} | {'N/A':<12} | {'N/A':<10} | {'N/A':<12} | {'N/A':<12}\n")
+                f.write(f"{config:<25} | {'N/A':<12} | {'N/A':<12} | {'N/A':<10} | {'N/A':<12} | {'N/A':<12}\n")
 
         f.write("\n")
 
         # Table 2: Image Quality
         f.write("TABLE 2: IMAGE QUALITY METRICS\n")
-        f.write("-"*60 + "\n")
-        f.write(f"{'Configuration':<20} | {'PSNR (dB)':<15} | {'SSIM':<15}\n")
-        f.write("-"*60 + "\n")
+        f.write("-"*70 + "\n")
+        f.write(f"{'Configuration':<25} | {'PSNR (dB)':<15} | {'SSIM':<15}\n")
+        f.write("-"*70 + "\n")
 
         for config in configs:
             if config in results_dict and results_dict[config]:
                 r = results_dict[config]
-                f.write(f"{config:<20} | {r['psnr_mean']:>15.2f} | {r['ssim_mean']:>15.4f}\n")
+                f.write(f"{config:<25} | {r['psnr_mean']:>15.2f} | {r['ssim_mean']:>15.4f}\n")
             else:
-                f.write(f"{config:<20} | {'N/A':<15} | {'N/A':<15}\n")
+                f.write(f"{config:<25} | {'N/A':<15} | {'N/A':<15}\n")
 
         f.write("\n")
 
-        # Table 3: Improvements over Baseline
-        if 'baseline' in results_dict and results_dict['baseline']:
-            f.write("TABLE 3: IMPROVEMENTS OVER BASELINE\n")
-            f.write("-"*100 + "\n")
-            f.write(f"{'Configuration':<20} | {'ΔGenuine':<12} | {'ΔImpostor':<12} | {'ΔEER':<10} | {'ΔTAR@0.1%':<12} | {'ΔTAR@1%':<12}\n")
-            f.write("-"*100 + "\n")
+        # Table 3: Improvements over Baseline (per d_weight)
+        # Group baselines by d_weight
+        baselines = {c: results_dict[c] for c in configs if c.startswith('baseline_') and c in results_dict}
+        
+        if baselines:
+            f.write("TABLE 3: IMPROVEMENTS OVER BASELINE (per D_weight)\n")
+            f.write("-"*120 + "\n")
+            f.write(f"{'Configuration':<25} | {'Baseline':<20} | {'ΔGenuine':<12} | {'ΔImpostor':<12} | {'ΔEER':<10} | {'ΔTAR@1%':<12}\n")
+            f.write("-"*120 + "\n")
 
-            baseline = results_dict['baseline']
-            for config in configs[1:]:  # Skip baseline
-                if config in results_dict and results_dict[config]:
-                    imp = compute_improvement(baseline, results_dict[config])
-                    f.write(f"{config:<20} | {imp['genuine_sim']:>+12.4f} | {imp['impostor_sim']:>+12.4f} | "
-                           f"{imp['eer']:>+10.2f} | {imp['tar_001']:>+12.2f} | {imp['tar_01']:>+12.2f}\n")
+            # For each FR config, compare to baseline with same d_weight
+            for config in configs:
+                if not config.startswith('baseline_') and config in results_dict and results_dict[config]:
+                    # Extract d_weight from config name (e.g., "fr_weight_0.5_d1" -> "d1")
+                    parts = config.split('_')
+                    d_weight_part = [p for p in parts if p.startswith('d')]
+                    if d_weight_part:
+                        d_suffix = d_weight_part[0]
+                        baseline_key = f"baseline_{d_suffix}"
+                        
+                        if baseline_key in baselines:
+                            baseline = baselines[baseline_key]
+                            imp = compute_improvement(baseline, results_dict[config])
+                            f.write(f"{config:<25} | {baseline_key:<20} | {imp['genuine_sim']:>+12.4f} | {imp['impostor_sim']:>+12.4f} | "
+                                   f"{imp['eer']:>+10.2f} | {imp['tar_01']:>+12.2f}\n")
 
             f.write("\n")
-            f.write("Note: Δ indicates change from baseline. For EER, negative is better (lower error).\n")
+            f.write("Note: Each FR configuration is compared to baseline with the same D_weight.\n")
+            f.write("      Δ indicates change from baseline. For EER, negative is better (lower error).\n")
             f.write("      For all other metrics, positive is better.\n\n")
 
         # Statistical Significance
-        if SCIPY_AVAILABLE and 'baseline' in results_dict:
+        baselines = {c: results_dict[c] for c in configs if c.startswith('baseline_') and c in results_dict}
+        
+        if SCIPY_AVAILABLE and baselines:
             f.write("="*100 + "\n")
-            f.write("STATISTICAL SIGNIFICANCE ANALYSIS\n")
+            f.write("STATISTICAL SIGNIFICANCE ANALYSIS (vs baseline with same D_weight)\n")
             f.write("="*100 + "\n\n")
 
-            baseline = results_dict['baseline']
-            for config in configs[1:]:
-                if config in results_dict and results_dict[config]:
-                    f.write(f"\n{config} vs Baseline:\n")
-                    f.write("-"*60 + "\n")
+            for config in configs:
+                if not config.startswith('baseline_') and config in results_dict and results_dict[config]:
+                    # Find matching baseline
+                    parts = config.split('_')
+                    d_weight_part = [p for p in parts if p.startswith('d')]
+                    if d_weight_part:
+                        d_suffix = d_weight_part[0]
+                        baseline_key = f"baseline_{d_suffix}"
+                        
+                        if baseline_key in baselines:
+                            baseline = baselines[baseline_key]
+                            f.write(f"\n{config} vs {baseline_key}:\n")
+                            f.write("-"*60 + "\n")
 
-                    sig = statistical_significance(baseline, results_dict[config])
-                    if sig['available'] and 'genuine_similarity' in sig:
-                        gs = sig['genuine_similarity']
-                        if 'p_value' in gs:
-                            f.write(f"  Genuine Similarity Improvement: {gs['mean_diff']:+.4f}\n")
-                            f.write(f"  t-statistic: {gs['t_statistic']:.4f}\n")
-                            f.write(f"  p-value: {gs['p_value']:.6f}\n")
-                            f.write(f"  Significant (p < 0.05): {'YES ✓' if gs['significant'] else 'NO ✗'}\n")
+                            sig = statistical_significance(baseline, results_dict[config])
+                            if sig['available'] and 'genuine_similarity' in sig:
+                                gs = sig['genuine_similarity']
+                                if 'p_value' in gs:
+                                    f.write(f"  Genuine Similarity Improvement: {gs['mean_diff']:+.4f}\n")
+                                    f.write(f"  t-statistic: {gs['t_statistic']:.4f}\n")
+                                    f.write(f"  p-value: {gs['p_value']:.6f}\n")
+                                    f.write(f"  Significant (p < 0.05): {'YES ✓' if gs['significant'] else 'NO ✗'}\n")
 
-                    if 'eer_improvement' in sig:
-                        eer = sig['eer_improvement']
-                        f.write(f"\n  EER Improvement: {eer['improvement']:+.2f}%\n")
-                        f.write(f"    Baseline EER: {eer['baseline']:.2f}%\n")
-                        f.write(f"    Model EER: {eer['model']:.2f}%\n")
+                            if 'eer_improvement' in sig:
+                                eer = sig['eer_improvement']
+                                f.write(f"\n  EER Improvement: {eer['improvement']:+.2f}%\n")
+                                f.write(f"    Baseline EER: {eer['baseline']:.2f}%\n")
+                                f.write(f"    Model EER: {eer['model']:.2f}%\n")
 
         # Key Findings
         f.write("\n" + "="*100 + "\n")
         f.write("KEY FINDINGS\n")
         f.write("="*100 + "\n\n")
 
-        if 'baseline' in results_dict:
-            baseline = results_dict['baseline']
-
-            # Find best configuration
+        baselines = {c: results_dict[c] for c in configs if c.startswith('baseline_') and c in results_dict}
+        
+        if baselines:
+            # Find best configuration overall
             best_eer_config = min(configs, key=lambda c: results_dict[c]['eer_enhanced'] if c in results_dict and results_dict[c] else float('inf'))
             best_tar_config = max(configs, key=lambda c: results_dict[c]['tar_01_enhanced'] if c in results_dict and results_dict[c] else 0)
             best_genuine_config = max(configs, key=lambda c: results_dict[c]['genuine_mean_enhanced'] if c in results_dict and results_dict[c] else 0)
+            
+            # Also find best baseline
+            best_baseline = min(baselines.keys(), key=lambda c: baselines[c]['eer_enhanced'])
 
-            f.write(f"1. Best EER (lowest): {best_eer_config}\n")
-            f.write(f"   EER: {results_dict[best_eer_config]['eer_enhanced']:.2f}%\n\n")
+            f.write(f"1. Best Baseline: {best_baseline}\n")
+            f.write(f"   EER: {baselines[best_baseline]['eer_enhanced']:.2f}%\n")
+            f.write(f"   TAR@FAR=1%: {baselines[best_baseline]['tar_01_enhanced']:.2f}%\n\n")
+            
+            f.write(f"2. Best Overall Configuration (Lowest EER): {best_eer_config}\n")
+            f.write(f"   EER: {results_dict[best_eer_config]['eer_enhanced']:.2f}%\n")
+            f.write(f"   TAR@FAR=1%: {results_dict[best_eer_config]['tar_01_enhanced']:.2f}%\n\n")
 
-            f.write(f"2. Best TAR@FAR=1%: {best_tar_config}\n")
-            f.write(f"   TAR: {results_dict[best_tar_config]['tar_01_enhanced']:.2f}%\n\n")
+            f.write(f"3. Best TAR@FAR=1%: {best_tar_config}\n")
+            f.write(f"   TAR: {results_dict[best_tar_config]['tar_01_enhanced']:.2f}%\n")
+            f.write(f"   EER: {results_dict[best_tar_config]['eer_enhanced']:.2f}%\n\n")
 
-            f.write(f"3. Best Genuine Similarity: {best_genuine_config}\n")
+            f.write(f"4. Best Genuine Similarity: {best_genuine_config}\n")
             f.write(f"   Similarity: {results_dict[best_genuine_config]['genuine_mean_enhanced']:.4f}\n\n")
 
             # Overall recommendation
-            f.write("4. RECOMMENDED CONFIGURATION: ")
+            f.write("5. RECOMMENDED CONFIGURATION: ")
             # Typically, we'd choose based on best TAR@FAR or EER
             if best_eer_config == best_tar_config:
                 f.write(f"{best_eer_config}\n")
@@ -315,6 +348,20 @@ def generate_comparison_table(results_dict, output_file):
             else:
                 f.write(f"{best_tar_config}\n")
                 f.write(f"   Reason: Best TAR@FAR=1% (most relevant for real-world verification)\n")
+            
+            # Show improvement over best baseline
+            # Find the baseline with matching d_weight
+            parts = best_tar_config.split('_')
+            d_weight_part = [p for p in parts if p.startswith('d')]
+            if d_weight_part and not best_tar_config.startswith('baseline_'):
+                d_suffix = d_weight_part[0]
+                matching_baseline = f"baseline_{d_suffix}"
+                if matching_baseline in baselines:
+                    imp = compute_improvement(baselines[matching_baseline], results_dict[best_tar_config])
+                    f.write(f"\n   Improvement over {matching_baseline}:\n")
+                    f.write(f"     EER: {imp['eer']:+.2f}% (lower is better)\n")
+                    f.write(f"     TAR@FAR=1%: {imp['tar_01']:+.2f}% (higher is better)\n")
+                    f.write(f"     Genuine Similarity: {imp['genuine_sim']:+.4f}\n")
 
         f.write("\n" + "="*100 + "\n")
 
@@ -442,16 +489,22 @@ def main():
     results_dict = {}
 
     print("Loading evaluation results...")
+    
+    # Look for all d_weight variations
+    d_weights = ['0.5', '1', '1.5']
+    
     for config in configs:
-        result_file = os.path.join(args.results_dir, config, 'face_verification_results.txt')
-        print(f"  {config}: ", end='')
-
-        results = parse_result_file(result_file)
-        if results:
-            results_dict[config] = results
-            print(f"✓ ({results['num_genuine']} genuine + {results['num_impostor']} impostor pairs)")
-        else:
-            print("✗ Not found")
+        for d_weight in d_weights:
+            config_key = f"{config}_d{d_weight}"
+            result_file = os.path.join(args.results_dir, config_key, 'face_verification_results.txt')
+            
+            if os.path.exists(result_file):
+                results = parse_result_file(result_file)
+                if results:
+                    results_dict[config_key] = results
+                    print(f"  ✓ {config_key}: ({results['num_genuine']} genuine + {results['num_impostor']} impostor pairs)")
+                else:
+                    print(f"  ⚠ Failed to parse: {config_key}")
 
     if not results_dict:
         print("\n✗ Error: No results found!")

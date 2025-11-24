@@ -1,0 +1,35 @@
+Face Verification Evaluation Results (Pairs Protocol)
+======================================================================
+
+Pairs file: ./pairs.txt
+Genuine pairs: 1000
+Impostor pairs: 1000
+
+Genuine Pair Scores (same person):
+  Low-light avg similarity:  0.3932 ± 0.2183
+  Enhanced avg similarity:   0.9448 ± 0.0484
+  Similarity improvement:    0.5516
+
+Impostor Pair Scores (different people):
+  Low-light avg similarity:  0.3104 ± 0.2289
+  Enhanced avg similarity:   0.5719 ± 0.1575
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  41.75% (threshold=0.343)
+    Enhanced:   2.60% (threshold=0.818)
+    Improvement: 39.15%
+
+  True Accept Rate @ FAR=0.1%:
+    Low-light:  0.40%
+    Enhanced:   90.30%
+    Improvement: 89.90%
+
+  True Accept Rate @ FAR=1%:
+    Low-light:  1.70%
+    Enhanced:   95.30%
+    Improvement: 93.60%
+
+Image Quality:
+  Average PSNR: 23.30 dB
+  Average SSIM: 0.7812

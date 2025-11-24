@@ -20,6 +20,9 @@ ADAFACE_WEIGHTS="./weights/adaface/adaface_ir50_webface4m.ckpt"
 RESULTS_BASE="./results/full_evaluation"
 EPOCH=50
 
+# D_weight variations to evaluate
+D_WEIGHTS=("0.5" "1" "1.5")
+
 # Verify prerequisites
 echo "Checking prerequisites..."
 echo ""
@@ -59,19 +62,24 @@ MODELS=(
 echo ""
 echo "Checking model checkpoints..."
 MISSING_MODELS=0
+FOUND_MODELS=()
+
 for config in "${MODELS[@]}"; do
-    MODEL_PATH="./weights/ablation/$config/epoch_$EPOCH.pth"
-    if [ ! -f "$MODEL_PATH" ]; then
-        echo "✗ Missing: $MODEL_PATH"
-        MISSING_MODELS=$((MISSING_MODELS + 1))
-    else
-        echo "✓ Found: $MODEL_PATH"
-    fi
+    for d_weight in "${D_WEIGHTS[@]}"; do
+        MODEL_PATH="./weights/ablation/$config/d_${d_weight}/epoch_$EPOCH.pth"
+        if [ ! -f "$MODEL_PATH" ]; then
+            echo "⚠ Missing: $MODEL_PATH"
+            MISSING_MODELS=$((MISSING_MODELS + 1))
+        else
+            echo "✓ Found: $MODEL_PATH"
+            FOUND_MODELS+=("$config/d_$d_weight")
+        fi
+    done
 done
 
-if [ $MISSING_MODELS -gt 0 ]; then
+if [ ${#FOUND_MODELS[@]} -eq 0 ]; then
     echo ""
-    echo "✗ Error: $MISSING_MODELS model(s) missing"
+    echo "✗ Error: No model checkpoints found"
     echo "  Train models first or adjust EPOCH variable"
     exit 1
 fi
@@ -82,7 +90,9 @@ echo "All prerequisites met! Starting evaluation..."
 echo "========================================================================"
 echo ""
 echo "Configuration:"
-echo "  Models: ${MODELS[@]}"
+echo "  Model configs: ${MODELS[@]}"
+echo "  D weights: ${D_WEIGHTS[@]}"
+echo "  Found models: ${#FOUND_MODELS[@]}"
 echo "  Epoch: $EPOCH"
 echo "  Pairs: $NUM_PAIRS"
 echo "  Output: $RESULTS_BASE"
@@ -91,57 +101,67 @@ echo ""
 # Create results directory
 mkdir -p "$RESULTS_BASE"
 
-# Evaluate each model
+# Evaluate each model with each d_weight
 for config in "${MODELS[@]}"; do
-    echo ""
-    echo "========================================================================"
-    echo "Evaluating: $config"
-    echo "========================================================================"
-    echo ""
-
-    MODEL_PATH="./weights/ablation/$config/epoch_$EPOCH.pth"
-    OUTPUT_DIR="$RESULTS_BASE/$config"
-
-    mkdir -p "$OUTPUT_DIR"
-
-    echo "Model: $MODEL_PATH"
-    echo "Output: $OUTPUT_DIR"
-    echo ""
-    echo "Running evaluation (this may take 10-30 minutes)..."
-    echo ""
-
-    # Run evaluation with full pairs
-    python eval_face_verification.py \
-        --model="$MODEL_PATH" \
-        --test_dir="$TEST_DIR" \
-        --pairs_file="$PAIRS_FILE" \
-        --face_weights="$ADAFACE_WEIGHTS" \
-        --face_model=ir_50 \
-        --output_dir="$OUTPUT_DIR" \
-        --device=cuda 2>&1 | tee "$OUTPUT_DIR/evaluation.log"
-
-    EXIT_CODE=${PIPESTATUS[0]}
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo ""
-        echo "✓ Evaluation completed successfully"
-        echo ""
-
-        # Display key results
-        if [ -f "$OUTPUT_DIR/face_verification_results.txt" ]; then
-            echo "Key Results:"
-            echo "------------"
-            grep -E "Genuine pair|Impostor pair|Equal Error Rate|TAR @ FAR=1%" "$OUTPUT_DIR/face_verification_results.txt" | head -20
+    for d_weight in "${D_WEIGHTS[@]}"; do
+        MODEL_PATH="./weights/ablation/$config/d_${d_weight}/epoch_$EPOCH.pth"
+        
+        # Skip if model doesn't exist
+        if [ ! -f "$MODEL_PATH" ]; then
+            echo ""
+            echo "⚠ Skipping: $config (d=$d_weight) - model not found"
+            continue
         fi
-    else
+        
         echo ""
-        echo "✗ Evaluation failed with exit code: $EXIT_CODE"
-        echo "  Check log: $OUTPUT_DIR/evaluation.log"
+        echo "========================================================================"
+        echo "Evaluating: $config (D_weight=$d_weight)"
+        echo "========================================================================"
         echo ""
-    fi
 
-    echo ""
-    echo "------------------------------------------------------------------------"
+        OUTPUT_DIR="$RESULTS_BASE/${config}_d${d_weight}"
+
+        mkdir -p "$OUTPUT_DIR"
+
+        echo "Model: $MODEL_PATH"
+        echo "Output: $OUTPUT_DIR"
+        echo ""
+        echo "Running evaluation (this may take 10-30 minutes)..."
+        echo ""
+
+        # Run evaluation with full pairs
+        python eval_face_verification.py \
+            --model="$MODEL_PATH" \
+            --test_dir="$TEST_DIR" \
+            --pairs_file="$PAIRS_FILE" \
+            --face_weights="$ADAFACE_WEIGHTS" \
+            --face_model=ir_50 \
+            --output_dir="$OUTPUT_DIR" \
+            --device=cuda 2>&1 | tee "$OUTPUT_DIR/evaluation.log"
+
+        EXIT_CODE=${PIPESTATUS[0]}
+
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo ""
+            echo "✓ Evaluation completed successfully"
+            echo ""
+
+            # Display key results
+            if [ -f "$OUTPUT_DIR/face_verification_results.txt" ]; then
+                echo "Key Results:"
+                echo "------------"
+                grep -E "Genuine pair|Impostor pair|Equal Error Rate|TAR @ FAR=1%" "$OUTPUT_DIR/face_verification_results.txt" | head -20
+            fi
+        else
+            echo ""
+            echo "✗ Evaluation failed with exit code: $EXIT_CODE"
+            echo "  Check log: $OUTPUT_DIR/evaluation.log"
+            echo ""
+        fi
+
+        echo ""
+        echo "------------------------------------------------------------------------"
+    done
 done
 
 echo ""
@@ -172,15 +192,21 @@ echo "===============" >> "$COMPARISON_FILE"
 echo "" >> "$COMPARISON_FILE"
 
 # Table header
-printf "%-20s | %-12s | %-12s | %-10s | %-12s | %-12s | %-8s | %-8s\n" \
+printf "%-25s | %-12s | %-12s | %-10s | %-12s | %-12s | %-8s | %-8s\n" \
     "Configuration" "Genuine Sim" "Impostor Sim" "EER (%)" "TAR@0.1% (%)" "TAR@1% (%)" "PSNR" "SSIM" >> "$COMPARISON_FILE"
-echo "---------------------+--------------+--------------+------------+--------------+--------------+----------+----------" >> "$COMPARISON_FILE"
+echo "--------------------------+--------------+--------------+------------+--------------+--------------+----------+----------" >> "$COMPARISON_FILE"
 
-# Extract and display results for each model
+# Extract and display results for each model and d_weight
 for config in "${MODELS[@]}"; do
-    RESULT_FILE="$RESULTS_BASE/$config/face_verification_results.txt"
+    for d_weight in "${D_WEIGHTS[@]}"; do
+        RESULT_FILE="$RESULTS_BASE/${config}_d${d_weight}/face_verification_results.txt"
+        
+        if [ ! -f "$RESULT_FILE" ]; then
+            continue
+        fi
+        
+        CONFIG_LABEL="${config}_d${d_weight}"
 
-    if [ -f "$RESULT_FILE" ]; then
         # Extract metrics (Enhanced values only)
         GENUINE_SIM=$(grep "Enhanced avg similarity:" "$RESULT_FILE" | head -1 | awk '{print $4}' | tr -d '\n')
         IMPOSTOR_SIM=$(grep "Enhanced avg similarity:" "$RESULT_FILE" | tail -1 | awk '{print $4}' | tr -d '\n')
@@ -205,11 +231,9 @@ for config in "${MODELS[@]}"; do
         PSNR=${PSNR:-N/A}
         SSIM=${SSIM:-N/A}
 
-        printf "%-20s | %-12s | %-12s | %-10s | %-12s | %-12s | %-8s | %-8s\n" \
-            "$config" "$GENUINE_SIM" "$IMPOSTOR_SIM" "$EER" "$TAR_001" "$TAR_1" "$PSNR" "$SSIM" >> "$COMPARISON_FILE"
-    else
-        printf "%-20s | Results not found\n" "$config" >> "$COMPARISON_FILE"
-    fi
+        printf "%-25s | %-12s | %-12s | %-10s | %-12s | %-12s | %-8s | %-8s\n" \
+            "$CONFIG_LABEL" "$GENUINE_SIM" "$IMPOSTOR_SIM" "$EER" "$TAR_001" "$TAR_1" "$PSNR" "$SSIM" >> "$COMPARISON_FILE"
+    done
 done
 
 echo "" >> "$COMPARISON_FILE"
@@ -242,7 +266,12 @@ echo "Results saved to: $RESULTS_BASE/"
 echo ""
 echo "Individual result files:"
 for config in "${MODELS[@]}"; do
-    echo "  • $RESULTS_BASE/$config/face_verification_results.txt"
+    for d_weight in "${D_WEIGHTS[@]}"; do
+        RESULT_FILE="$RESULTS_BASE/${config}_d${d_weight}/face_verification_results.txt"
+        if [ -f "$RESULT_FILE" ]; then
+            echo "  • $RESULT_FILE"
+        fi
+    done
 done
 echo ""
 echo "Next steps:"

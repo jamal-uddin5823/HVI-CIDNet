@@ -162,22 +162,22 @@ echo ""
 echo "Starting ablation study..."
 echo ""
 
-# #1. Baseline (no FR loss)
-# for d_weight in 1 1.5; do
-#     train_baseline "baseline" $d_weight
-# done
+#1. Baseline (no FR loss)
+for d_weight in 0.5 1 1.5; do
+    train_baseline "baseline" $d_weight
+done
 
 #2. FR weight = 0.3
-for d_weight in 1.5; do
+for d_weight in 0.5 1 1.5; do
     train_with_fr "fr_weight_0.3" 0.3 $d_weight
 done
 
 #3. FR weight = 0.5 (recommended)
-for d_weight in 1 1.5; do
+for d_weight in 0.5 1 1.5; do
     train_with_fr "fr_weight_0.5" 0.5 $d_weight
 done
 #4. FR weight = 1.0
-for d_weight in 1 1.5; do
+for d_weight in 0.5 1 1.5; do
     train_with_fr "fr_weight_1.0" 1.0 $d_weight
 done
 
@@ -232,7 +232,7 @@ if [ ! -f "$ADAFACE_WEIGHTS" ]; then
 fi
 
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-    for d_weight in 1 1.5; do
+    for d_weight in 0.5 1 1.5; do
         config_name="${config}_d${d_weight}"
         echo ""
         echo "========================================================================"
@@ -317,7 +317,7 @@ echo ""
 # Check if ANY results exist
 RESULTS_FOUND=0
 for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-    for d_weight in 1 1.5; do
+    for d_weight in 0.5 1 1.5; do
         config_name="${config}_d${d_weight}"
         RESULT_FILE="./results/ablation/$config_name/face_verification_results.txt"
         if [ -f "$RESULT_FILE" ]; then
@@ -352,7 +352,7 @@ if [ -n "$PAIRS_FILE" ] && [ -f "$PAIRS_FILE" ]; then
     echo "--------------------------+----------+-------------+---------+------------+-------+------"
 
     for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-        for d_weight in 1 1.5; do
+        for d_weight in 0.5 1 1.5; do
             config_name="${config}_d${d_weight}"
             RESULT_FILE="./results/ablation/$config_name/face_verification_results.txt"
             if [ -f "$RESULT_FILE" ]; then
@@ -376,7 +376,7 @@ else
     echo "--------------------------+----------+----------------+-------------+-------+------"
 
     for config in baseline fr_weight_0.3 fr_weight_0.5 fr_weight_1.0; do
-        for d_weight in 1 1.5; do
+        for d_weight in 0.5 1 1.5; do
             config_name="${config}_d${d_weight}"
             RESULT_FILE="./results/ablation/$config_name/face_verification_results.txt"
             if [ -f "$RESULT_FILE" ]; then

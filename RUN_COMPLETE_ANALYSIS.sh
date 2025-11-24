@@ -12,6 +12,10 @@
 # Or run steps individually (see below)
 
 set -e  # Exit on any error
+set -o pipefail
+
+# Trap to handle interrupts and errors
+trap 'echo ""; echo "✗ Script interrupted or failed at line $LINENO. Exiting..."; exit 130' INT TERM ERR
 
 echo "================================================================================"
 echo "COMPLETE FACE RECOGNITION ABLATION STUDY ANALYSIS"
@@ -59,15 +63,15 @@ if [ -f "run_full_evaluation.sh" ]; then
     echo ""
     bash run_full_evaluation.sh 2>&1 | tee -a "$LOG_FILE"
 
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        echo ""
-        echo "✓ Step 1 completed successfully"
-        echo ""
-    else
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo ""
         echo "✗ Step 1 failed. Check log: $LOG_FILE"
         exit 1
     fi
+    
+    echo ""
+    echo "✓ Step 1 completed successfully"
+    echo ""
 else
     echo "✗ Error: run_full_evaluation.sh not found"
     exit 1
@@ -88,15 +92,15 @@ if [ -f "generate_thesis_results.py" ]; then
         --results_dir ./results/full_evaluation \
         --output_dir ./results/full_evaluation 2>&1 | tee -a "$LOG_FILE"
 
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo ""
-        echo "✓ Step 2 completed successfully"
-        echo ""
-    else
-        echo ""
-        echo "⚠ Step 2 had issues (check log), continuing..."
-        echo ""
+        echo "✗ Step 2 failed. Check log: $LOG_FILE"
+        exit 1
     fi
+    
+    echo ""
+    echo "✓ Step 2 completed successfully"
+    echo ""
 else
     echo "⚠ Warning: generate_thesis_results.py not found, skipping statistical analysis"
     echo ""
@@ -109,53 +113,86 @@ echo "==========================================================================
 echo "STEP 3/3: Extended Analysis (Optional)"
 echo "================================================================================"
 echo ""
+echo "Running extended analysis for each D_weight:"
+echo "  • Compares each baseline vs its best FR model (same D_weight)"
+echo "  • Generates statistical tests, per-identity analysis, failure cases"
+echo ""
 
-# Check for models with D_weight variations
-BASELINE_MODEL=""
-FR_MODEL=""
-
-for d_weight in 1 1.5; do
-    if [ -f "./weights/ablation/baseline/d_${d_weight}/epoch_50.pth" ]; then
-        BASELINE_MODEL="./weights/ablation/baseline/d_${d_weight}/epoch_50.pth"
-        break
-    fi
-done
-
-for d_weight in 1 1.5; do
-    if [ -f "./weights/ablation/fr_weight_0.5/d_${d_weight}/epoch_50.pth" ]; then
-        FR_MODEL="./weights/ablation/fr_weight_0.5/d_${d_weight}/epoch_50.pth"
-        break
-    fi
-done
-
-if [ -f "extended_analysis.py" ] && [ -f "$BASELINE_MODEL" ] && [ -f "$FR_MODEL" ]; then
-    echo "Running extended analysis (baseline vs FR=0.5)..."
-    echo "This will generate:"
-    echo "  • Statistical significance tests (McNemar's, t-test)"
-    echo "  • Per-identity analysis"
-    echo "  • Failure case visualizations"
+if [ ! -f "extended_analysis.py" ]; then
+    echo "⚠ Skipping extended analysis (extended_analysis.py not found)"
     echo ""
-
-    python extended_analysis.py \
-        --baseline_model "$BASELINE_MODEL" \
-        --fr_model "$FR_MODEL" \
-        --test_dir ./datasets/LFW_lowlight/test \
-        --pairs_file ./pairs.txt \
-        --face_weights ./weights/adaface/adaface_ir50_webface4m.ckpt \
-        --output_dir ./results/extended_analysis \
-        --analyses significance identity failures 2>&1 | tee -a "$LOG_FILE"
-
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        echo ""
-        echo "✓ Step 3 completed successfully"
-        echo ""
-    else
-        echo ""
-        echo "⚠ Step 3 had issues (check log)"
-        echo ""
-    fi
 else
-    echo "⚠ Skipping extended analysis (missing files)"
+    # D_weights to analyze
+    D_WEIGHTS=(0.5 1 1.5)
+    FR_WEIGHTS=(0.3 0.5 1.0)
+    
+    ANALYSIS_COUNT=0
+    
+    for d_weight in "${D_WEIGHTS[@]}"; do
+        BASELINE_MODEL="./weights/ablation/baseline/d_${d_weight}/epoch_50.pth"
+        
+        # Skip if baseline doesn't exist
+        if [ ! -f "$BASELINE_MODEL" ]; then
+            echo "⚠ Skipping d_weight=$d_weight: baseline model not found"
+            continue
+        fi
+        
+        # Find best FR model for this d_weight (by checking which exists)
+        # Priority: FR=0.5 > FR=1.0 > FR=0.3
+        BEST_FR_MODEL=""
+        BEST_FR_WEIGHT=""
+        
+        for fr_weight in 0.5 1.0 0.3; do
+            FR_MODEL="./weights/ablation/fr_weight_${fr_weight}/d_${d_weight}/epoch_50.pth"
+            if [ -f "$FR_MODEL" ]; then
+                BEST_FR_MODEL="$FR_MODEL"
+                BEST_FR_WEIGHT="$fr_weight"
+                break
+            fi
+        done
+        
+        if [ -z "$BEST_FR_MODEL" ]; then
+            echo "⚠ Skipping d_weight=$d_weight: no FR models found"
+            continue
+        fi
+        
+        echo ""
+        echo "------------------------------------------------------------------------"
+        echo "Extended Analysis: D_weight=$d_weight"
+        echo "------------------------------------------------------------------------"
+        echo "  Baseline: baseline/d_${d_weight}"
+        echo "  FR Model: fr_weight_${BEST_FR_WEIGHT}/d_${d_weight}"
+        echo ""
+        
+        OUTPUT_DIR="./results/extended_analysis/d_${d_weight}"
+        mkdir -p "$OUTPUT_DIR"
+        
+        python extended_analysis.py \
+            --baseline_model "$BASELINE_MODEL" \
+            --fr_model "$BEST_FR_MODEL" \
+            --test_dir ./datasets/LFW_lowlight/test \
+            --pairs_file ./pairs.txt \
+            --face_weights ./weights/adaface/adaface_ir50_webface4m.ckpt \
+            --output_dir "$OUTPUT_DIR" \
+            --analyses significance identity failures 2>&1 | tee -a "$LOG_FILE"
+
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo ""
+            echo "✗ Extended analysis failed for d_weight=$d_weight (check log: $LOG_FILE)"
+            exit 1
+        fi
+        
+        echo ""
+        echo "✓ Extended analysis completed for d_weight=$d_weight"
+        ANALYSIS_COUNT=$((ANALYSIS_COUNT + 1))
+        echo ""
+    done
+    
+    if [ $ANALYSIS_COUNT -eq 0 ]; then
+        echo "⚠ No extended analyses were run (missing models)"
+    else
+        echo "✓ Completed $ANALYSIS_COUNT extended analysis/analyses"
+    fi
     echo ""
 fi
 
@@ -176,12 +213,13 @@ echo "----------------"
 echo ""
 echo "1. Individual model evaluations (for each FR weight × D weight combination):"
 echo "   Example locations:"
+echo "   • ./results/full_evaluation/baseline_d0.5/face_verification_results.txt"
 echo "   • ./results/full_evaluation/baseline_d1/face_verification_results.txt"
 echo "   • ./results/full_evaluation/baseline_d1.5/face_verification_results.txt"
-echo "   • ./results/full_evaluation/fr_weight_0.3_d1/face_verification_results.txt"
+echo "   • ./results/full_evaluation/fr_weight_0.3_d0.5/face_verification_results.txt"
 echo "   • ./results/full_evaluation/fr_weight_0.5_d1/face_verification_results.txt"
 echo "   • ./results/full_evaluation/fr_weight_1.0_d1.5/face_verification_results.txt"
-echo "   (All 8 combinations evaluated)"
+echo "   (Up to 12 combinations evaluated: 4 configs × 3 d_weights)"
 echo ""
 echo "2. Comparison and statistics:"
 echo "   • ./results/full_evaluation/comparison_table.txt"
@@ -194,10 +232,14 @@ echo "   • ./results/full_evaluation/plots/tradeoff_analysis.png"
 echo ""
 
 if [ -d "./results/extended_analysis" ]; then
-    echo "4. Extended analysis:"
-    echo "   • ./results/extended_analysis/statistical_significance.txt"
-    echo "   • ./results/extended_analysis/per_identity_analysis.csv"
-    echo "   • ./results/extended_analysis/failure_cases.png"
+    echo "4. Extended analysis (per D_weight):"
+    for d_weight in 0.5 1 1.5; do
+        if [ -f "./results/extended_analysis/d_${d_weight}/statistical_significance.txt" ]; then
+            echo "   • ./results/extended_analysis/d_${d_weight}/statistical_significance.txt"
+            echo "   • ./results/extended_analysis/d_${d_weight}/per_identity_analysis.csv"
+            echo "   • ./results/extended_analysis/d_${d_weight}/failure_cases.png"
+        fi
+    done
     echo ""
 fi
 

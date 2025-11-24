@@ -1,0 +1,9 @@
+Failure Case Analysis
+======================================================================
+
+Threshold: 0.85
+Total failure cases found: 1
+
+Case   Low Name                       Baseline Sim    FR Sim          Improvement    
+--------------------------------------------------------------------------------
+1      Yasser_Arafat/Yasser_Arafat_0006 0.8497          0.8517          0.0020         

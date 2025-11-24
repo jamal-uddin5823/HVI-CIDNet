@@ -1,0 +1,11 @@
+Failure Case Analysis
+======================================================================
+
+Threshold: 0.85
+Total failure cases found: 3
+
+Case   Low Name                       Baseline Sim    FR Sim          Improvement    
+--------------------------------------------------------------------------------
+1      Robbie_Fowler/Robbie_Fowler_0000 0.8459          0.8580          0.0121         
+2      Mian_Khursheed_Mehmood_Kasuri/Mian_Khursheed_Mehmood_Kasuri_0002 0.8475          0.8547          0.0072         
+3      Princess_Caroline/Princess_Caroline_0003 0.8496          0.8515          0.0019         

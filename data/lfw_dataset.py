@@ -131,8 +131,15 @@ class LFWDatasetFromFolder(data.Dataset):
         high_path = join(self.high_folder, self.high_filenames[index])
 
         # Load images
-        im_low = load_img(low_path)
-        im_high = load_img(high_path)
+        try:
+            im_low = load_img(low_path)
+            im_high = load_img(high_path)
+        except Exception as e:
+            print(f"Error loading images at index {index}: {e}")
+            print(f"  Low: {low_path}")
+            print(f"  High: {high_path}")
+            # Return first image as fallback
+            return self.__getitem__(0)
 
         # Apply transforms with same random seed for consistency
         if self.transform:
@@ -149,6 +156,23 @@ class LFWDatasetFromFolder(data.Dataset):
             random.seed(seed)
             torch.manual_seed(seed)
             im_high = self.transform(im_high)
+
+        # Validate tensors - check for NaN, Inf, or extreme values
+        if torch.isnan(im_low).any() or torch.isinf(im_low).any():
+            print(f"Warning: Invalid values in low image at index {index}: {low_path}")
+            im_low = torch.clamp(im_low, 0, 1)
+        
+        if torch.isnan(im_high).any() or torch.isinf(im_high).any():
+            print(f"Warning: Invalid values in high image at index {index}: {high_path}")
+            im_high = torch.clamp(im_high, 0, 1)
+        
+        # Check for extreme values that would cause NaN in loss
+        if im_high.max() > 1e10 or im_low.max() > 1e10:
+            print(f"Warning: Extreme values detected at index {index}")
+            print(f"  Low range: [{im_low.min()}, {im_low.max()}]")
+            print(f"  High range: [{im_high.min()}, {im_high.max()}]")
+            im_low = torch.clamp(im_low, 0, 1)
+            im_high = torch.clamp(im_high, 0, 1)
 
         return im_low, im_high, self.low_filenames[index], self.high_filenames[index]
 
