@@ -317,11 +317,18 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
             
             try:
+                # Set model to eval mode before evaluation
+                model.eval()
+                
                 eval(model, testing_data_loader, model_out_path, opt.val_folder+output_folder, 
                      norm_size=norm_size, LOL=opt.lol_v1, v2=opt.lolv2_real, alpha=0.8)
                 
                 # Clear GPU memory after evaluation
                 torch.cuda.empty_cache()
+                
+                # Force garbage collection
+                import gc
+                gc.collect()
                 
                 avg_psnr, avg_ssim, avg_lpips = metrics(im_dir, label_dir, use_GT_mean=False)
                 print("===> Avg.PSNR: {:.4f} dB ".format(avg_psnr))
@@ -333,13 +340,21 @@ if __name__ == '__main__':
                 print(psnr)
                 print(ssim)
                 print(lpips)
+                
+                # Set model back to train mode
+                model.train()
             except Exception as e:
+                import traceback
                 print(f"===> Validation failed at epoch {epoch}: {str(e)}")
+                print(traceback.format_exc())
                 print("===> Continuing training...")
                 # Append placeholder values
                 psnr.append(0.0)
                 ssim.append(0.0)
                 lpips.append(1.0)
+                
+                # Ensure model is back in train mode
+                model.train()
             
             # Clear GPU memory after validation
             torch.cuda.empty_cache()

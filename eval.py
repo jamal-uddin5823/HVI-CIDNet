@@ -53,35 +53,49 @@ def eval(model, testing_data_loader, model_path, output_folder,norm_size=True,LO
     elif unpaired:
         model.trans.gated2 = True
         model.trans.alpha = alpha
+        
+    batch_count = 0
     for batch in tqdm(testing_data_loader):
-        with torch.no_grad():
-            if norm_size:
-                input, name = batch[0], batch[1]
-            else:
-                input, name, h, w = batch[0], batch[1], batch[2], batch[3]
-            
-            input = input.cuda()
-            output = model(input**gamma) 
-            
-        if not os.path.exists(output_folder):          
-            os.mkdir(output_folder)  
-            
-        output = torch.clamp(output.cuda(),0,1).cuda()
-        if not norm_size:
-            output = output[:, :, :h, :w]
-        
-        output_img = transforms.ToPILImage()(output.squeeze(0).cpu())
-        
-        # Create subdirectory if needed (e.g., for LFW person folders)
-        output_path = output_folder + name[0]
-        output_dir = os.path.dirname(output_path)
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir, exist_ok=True)
-        
-        output_img.save(output_path)
-        
-        # Clear GPU cache every 50 images to prevent memory buildup
-        torch.cuda.empty_cache()
+        try:
+            with torch.no_grad():
+                if norm_size:
+                    input, name = batch[0], batch[1]
+                else:
+                    input, name, h, w = batch[0], batch[1], batch[2], batch[3]
+                
+                input = input.cuda()
+                output = model(input**gamma) 
+                
+                if not os.path.exists(output_folder):          
+                    os.makedirs(output_folder, exist_ok=True)
+                    
+                output = torch.clamp(output,0,1)
+                if not norm_size:
+                    output = output[:, :, :h, :w]
+                
+                # Move to CPU before converting to PIL to free GPU memory
+                output_cpu = output.squeeze(0).cpu()
+                output_img = transforms.ToPILImage()(output_cpu)
+                
+                # Create subdirectory if needed (e.g., for LFW person folders)
+                output_path = output_folder + name[0]
+                output_dir = os.path.dirname(output_path)
+                if output_dir and not os.path.exists(output_dir):
+                    os.makedirs(output_dir, exist_ok=True)
+                
+                output_img.save(output_path)
+                
+                # Explicitly delete tensors
+                del input, output, output_cpu
+                
+                batch_count += 1
+                # Clear GPU cache every 20 images to prevent memory buildup
+                if batch_count % 20 == 0:
+                    torch.cuda.empty_cache()
+                    
+        except Exception as e:
+            print(f"\nError processing batch {name}: {str(e)}")
+            continue
         
     print('===> End evaluation')
     

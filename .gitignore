@@ -169,3 +169,6 @@ datasets/
 
 
 nohup.out
+
+results/lfw/
+results/training/

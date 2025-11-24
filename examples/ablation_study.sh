@@ -162,13 +162,13 @@ echo ""
 echo "Starting ablation study..."
 echo ""
 
-#1. Baseline (no FR loss)
-for d_weight in 1 1.5; do
-    train_baseline "baseline" $d_weight
-done
+# #1. Baseline (no FR loss)
+# for d_weight in 1 1.5; do
+#     train_baseline "baseline" $d_weight
+# done
 
 #2. FR weight = 0.3
-for d_weight in 1 1.5; do
+for d_weight in 1.5; do
     train_with_fr "fr_weight_0.3" 0.3 $d_weight
 done
 

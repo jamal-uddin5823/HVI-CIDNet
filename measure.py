@@ -77,81 +77,109 @@ def metrics(im_dir, label_dir, use_GT_mean):
     n = 0
     loss_fn = lpips.LPIPS(net='alex')
     loss_fn.cuda()
+    loss_fn.eval()  # Set to eval mode
 
     # Ensure label_dir has trailing slash
     if not label_dir.endswith('/') and not label_dir.endswith('\\'):
         label_dir = label_dir + '/'
 
-    for item in tqdm(sorted(glob.glob(im_dir, recursive=True))):
-        # Extract relative path from the enhanced image path
-        # Example paths:
-        #   ./results/lfw/Chick_Hearn/Chick_Hearn_0001.png -> Chick_Hearn/Chick_Hearn_0001.png
-        #   ./results/LOLv1/test_001.png -> test_001.png
-        
-        # Normalize path separators
-        item_normalized = item.replace('\\', '/')
-        
-        # Find the output folder in the path (e.g., 'lfw', 'LOLv1', etc.)
-        # Common output folders
-        output_folders = ['lfw', 'LOLv1', 'LOLv2_real', 'LOLv2_syn', 'LOL_blur', 'SID', 'SICE_mix', 'SICE_grad', 'fivek']
-        
-        name = None
-        for folder in output_folders:
-            if f'/{folder}/' in item_normalized:
-                # Split by the output folder and take everything after it
-                parts = item_normalized.split(f'/{folder}/')
-                if len(parts) > 1:
-                    name = parts[-1]  # Get the relative path after the output folder
-                    break
-        
-        # Fallback: if no output folder found, just use the filename
-        if name is None:
-            name = os.path.basename(item)
-        
-        # For LFW dataset, only use nested structure (skip flat files like val_00012.png)
-        if 'lfw' in item_normalized.lower():
-            # Check if the name contains a subdirectory (person folder)
-            if '/' not in name:
-                # Skip flat files - they don't have corresponding ground truth
-                continue
-        
-        # Try to open the ground truth image with the extracted path
-        gt_path = label_dir + name
-        if not os.path.exists(gt_path):
-            # Fallback: try just the filename (for backward compatibility or flat structure)
-            name = os.path.basename(item)
+    # Get all image files
+    all_items = sorted(glob.glob(im_dir, recursive=True))
+    
+    for item in tqdm(all_items):
+        try:
+            # Extract relative path from the enhanced image path
+            # Example paths:
+            #   ./results/lfw/Chick_Hearn/Chick_Hearn_0001.png -> Chick_Hearn/Chick_Hearn_0001.png
+            #   ./results/LOLv1/test_001.png -> test_001.png
+            
+            # Normalize path separators
+            item_normalized = item.replace('\\', '/')
+            
+            # Find the output folder in the path (e.g., 'lfw', 'LOLv1', etc.)
+            # Common output folders
+            output_folders = ['lfw', 'LOLv1', 'LOLv2_real', 'LOLv2_syn', 'LOL_blur', 'SID', 'SICE_mix', 'SICE_grad', 'fivek']
+            
+            name = None
+            for folder in output_folders:
+                if f'/{folder}/' in item_normalized:
+                    # Split by the output folder and take everything after it
+                    parts = item_normalized.split(f'/{folder}/')
+                    if len(parts) > 1:
+                        name = parts[-1]  # Get the relative path after the output folder
+                        break
+            
+            # Fallback: if no output folder found, just use the filename
+            if name is None:
+                name = os.path.basename(item)
+            
+            # For LFW dataset, only use nested structure (skip flat files like val_00012.png)
+            if 'lfw' in item_normalized.lower():
+                # Check if the name contains a subdirectory (person folder)
+                if '/' not in name:
+                    # Skip flat files - they don't have corresponding ground truth
+                    continue
+            
+            # Try to open the ground truth image with the extracted path
             gt_path = label_dir + name
             if not os.path.exists(gt_path):
-                # Skip this file if ground truth doesn't exist
-                print(f"Warning: Ground truth not found for {item}, skipping...")
+                # Fallback: try just the filename (for backward compatibility or flat structure)
+                name = os.path.basename(item)
+                gt_path = label_dir + name
+                if not os.path.exists(gt_path):
+                    # Skip this file if ground truth doesn't exist
+                    continue
+            
+            # Load images
+            im1 = Image.open(item).convert('RGB')
+            im2 = Image.open(gt_path).convert('RGB')
+            (h, w) = im2.size
+            im1 = im1.resize((h, w))  
+            im1 = np.array(im1) 
+            im2 = np.array(im2)
+            
+            # Validate image arrays
+            if im1.size == 0 or im2.size == 0:
                 continue
-        
-        n += 1
-        im1 = Image.open(item).convert('RGB')
-        im2 = Image.open(gt_path).convert('RGB')
-        (h, w) = im2.size
-        im1 = im1.resize((h, w))  
-        im1 = np.array(im1) 
-        im2 = np.array(im2)
-        
-        if use_GT_mean:
-            mean_restored = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY).mean()
-            mean_target = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY).mean()
-            im1 = np.clip(im1 * (mean_target/mean_restored), 0, 255)
-        
-        score_psnr = calculate_psnr(im1, im2)
-        score_ssim = calculate_ssim(im1, im2)
-        ex_p0 = lpips.im2tensor(im1).cuda()
-        ex_ref = lpips.im2tensor(im2).cuda()
-        
-
-        score_lpips = loss_fn.forward(ex_ref, ex_p0)
+            
+            if use_GT_mean:
+                mean_restored = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY).mean()
+                mean_target = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY).mean()
+                if mean_restored > 0:  # Avoid division by zero
+                    im1 = np.clip(im1 * (mean_target/mean_restored), 0, 255)
+            
+            score_psnr = calculate_psnr(im1, im2)
+            score_ssim = calculate_ssim(im1, im2)
+            
+            # Use torch.no_grad() for LPIPS to prevent memory leaks
+            with torch.no_grad():
+                ex_p0 = lpips.im2tensor(im1).cuda()
+                ex_ref = lpips.im2tensor(im2).cuda()
+                score_lpips = loss_fn.forward(ex_ref, ex_p0)
+                
+                # Explicitly delete tensors and clear cache
+                lpips_value = score_lpips.item()
+                del ex_p0, ex_ref, score_lpips
+            
+            avg_psnr += score_psnr
+            avg_ssim += score_ssim
+            avg_lpips += lpips_value
+            n += 1
+            
+            # Clear cache every 10 images to prevent memory buildup
+            if n % 10 == 0:
+                torch.cuda.empty_cache()
+                
+        except Exception as e:
+            print(f"\nError processing {item}: {str(e)}")
+            continue
     
-        avg_psnr += score_psnr
-        avg_ssim += score_ssim
-        avg_lpips += score_lpips.item()
-        torch.cuda.empty_cache()
+    # Final cleanup
+    torch.cuda.empty_cache()
     
+    if n == 0:
+        print("Warning: No valid image pairs found for metrics calculation!")
+        return 0.0, 0.0, 1.0
 
     avg_psnr = avg_psnr / n
     avg_ssim = avg_ssim / n
