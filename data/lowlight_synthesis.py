@@ -8,7 +8,7 @@ this approach simulates the actual photon arrival process and sensor behavior.
 Key Features:
 1. Linear Space Transformation: Converts sRGB to linear RGB for realistic light reduction
 2. Poisson-Gaussian Noise: Models shot noise (signal-dependent) and read noise (signal-independent)
-3. White Balance Simulation: Simulates auto-white-balance failures in low light
+3. White Balance Simulation: Simulates auto-white-balance failures in low lightP
 4. Blur/Detail Loss: Simulates motion blur and denoising artifacts
 
 References:

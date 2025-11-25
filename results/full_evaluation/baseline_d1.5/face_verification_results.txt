@@ -6,30 +6,30 @@ Genuine pairs: 1000
 Impostor pairs: 1000
 
 Genuine Pair Scores (same person):
-  Low-light avg similarity:  0.6093 ± 0.1587
-  Enhanced avg similarity:   0.9437 ± 0.0413
-  Similarity improvement:    0.3344
+  Low-light avg similarity:  0.4061 ± 0.1786
+  Enhanced avg similarity:   0.9837 ± 0.0304
+  Similarity improvement:    0.5776
 
 Impostor Pair Scores (different people):
-  Low-light avg similarity:  0.5275 ± 0.1703
-  Enhanced avg similarity:   0.5921 ± 0.1310
+  Low-light avg similarity:  0.3460 ± 0.1848
+  Enhanced avg similarity:   0.6272 ± 0.1235
 
 Verification Performance:
   Equal Error Rate (EER):
-    Low-light:  39.45% (threshold=0.586)
-    Enhanced:   1.80% (threshold=0.828)
-    Improvement: 37.65%
+    Low-light:  42.10% (threshold=0.364)
+    Enhanced:   0.80% (threshold=0.859)
+    Improvement: 41.30%
 
   True Accept Rate @ FAR=0.1%:
-    Low-light:  0.10%
-    Enhanced:   93.90%
-    Improvement: 93.80%
+    Low-light:  0.20%
+    Enhanced:   98.30%
+    Improvement: 98.10%
 
   True Accept Rate @ FAR=1%:
-    Low-light:  1.20%
-    Enhanced:   97.30%
-    Improvement: 96.10%
+    Low-light:  1.40%
+    Enhanced:   99.20%
+    Improvement: 97.80%
 
 Image Quality:
-  Average PSNR: 23.28 dB
-  Average SSIM: 0.7808
+  Average PSNR: 31.56 dB
+  Average SSIM: 0.9876

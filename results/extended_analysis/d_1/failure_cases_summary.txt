@@ -2,8 +2,16 @@ Failure Case Analysis
 ======================================================================
 
 Threshold: 0.85
-Total failure cases found: 1
+Total failure cases found: 9
 
 Case   Low Name                       Baseline Sim    FR Sim          Improvement    
 --------------------------------------------------------------------------------
-1      Yasser_Arafat/Yasser_Arafat_0006 0.8497          0.8517          0.0020         
+1      David_Beckham/David_Beckham_0019 0.6701          0.9612          0.2911         
+2      Mike_Scioscia/Mike_Scioscia_0001 0.7099          0.9354          0.2255         
+3      David_Beckham/David_Beckham_0023 0.7972          0.9792          0.1821         
+4      Spencer_Abraham/Spencer_Abraham_0013 0.7459          0.9103          0.1644         
+5      Queen_Elizabeth_II/Queen_Elizabeth_II_0006 0.8046          0.9209          0.1163         
+6      Gerry_Parsky/Gerry_Parsky_0001 0.8235          0.9364          0.1129         
+7      Martin_Scorsese/Martin_Scorsese_0002 0.8476          0.9186          0.0710         
+8      Victoria_Clarke/Victoria_Clarke_0003 0.8467          0.8660          0.0192         
+9      Queen_Latifah/Queen_Latifah_0000 0.8350          0.8509          0.0159         

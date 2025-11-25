@@ -7,49 +7,49 @@ TABLE 1: FACE VERIFICATION PERFORMANCE
 ------------------------------------------------------------------------------------------------------------------------
 Configuration             | Genuine Sim  | Impostor Sim | EER (%)    | TAR@0.1%(%)  | TAR@1%(%)   
 ------------------------------------------------------------------------------------------------------------------------
-baseline_d0.5             |       0.9532 |       0.6620 |       0.00 |         0.00 |         0.00
-baseline_d1               |       0.9388 |       0.5623 |       0.00 |         0.00 |         0.00
-baseline_d1.5             |       0.9437 |       0.5921 |       0.00 |         0.00 |         0.00
-fr_weight_0.3_d0.5        |       0.9437 |       0.5707 |       0.00 |         0.00 |         0.00
-fr_weight_0.3_d1          |       0.9551 |       0.6723 |       0.00 |         0.00 |         0.00
-fr_weight_0.3_d1.5        |       0.9546 |       0.6732 |       0.00 |         0.00 |         0.00
-fr_weight_0.5_d0.5        |       0.9432 |       0.5940 |       0.00 |         0.00 |         0.00
-fr_weight_0.5_d1          |       0.9422 |       0.5714 |       0.00 |         0.00 |         0.00
-fr_weight_0.5_d1.5        |       0.9500 |       0.6245 |       0.00 |         0.00 |         0.00
-fr_weight_1.0_d0.5        |       0.9538 |       0.6758 |       0.00 |         0.00 |         0.00
-fr_weight_1.0_d1          |       0.9437 |       0.5919 |       0.00 |         0.00 |         0.00
-fr_weight_1.0_d1.5        |       0.9490 |       0.6319 |       0.00 |         0.00 |         0.00
+baseline_d0.5             |       0.9838 |       0.6418 |       0.00 |         0.00 |         0.00
+baseline_d1               |       0.9845 |       0.6521 |       0.00 |         0.00 |         0.00
+baseline_d1.5             |       0.9837 |       0.6272 |       0.00 |         0.00 |         0.00
+fr_weight_0.3_d0.5        |       0.8308 |       0.4703 |       0.00 |         0.00 |         0.00
+fr_weight_0.3_d1          |       0.8660 |       0.5996 |       0.00 |         0.00 |         0.00
+fr_weight_0.3_d1.5        |       0.8544 |       0.5723 |       0.00 |         0.00 |         0.00
+fr_weight_0.5_d0.5        |       0.8918 |       0.6312 |       0.00 |         0.00 |         0.00
+fr_weight_0.5_d1          |       0.8322 |       0.4906 |       0.00 |         0.00 |         0.00
+fr_weight_0.5_d1.5        |       0.8270 |       0.5345 |       0.00 |         0.00 |         0.00
+fr_weight_1.0_d0.5        |       0.8464 |       0.5196 |       0.00 |         0.00 |         0.00
+fr_weight_1.0_d1          |       0.8738 |       0.6382 |       0.00 |         0.00 |         0.00
+fr_weight_1.0_d1.5        |       0.8433 |       0.5398 |       0.00 |         0.00 |         0.00
 
 TABLE 2: IMAGE QUALITY METRICS
 ----------------------------------------------------------------------
 Configuration             | PSNR (dB)       | SSIM           
 ----------------------------------------------------------------------
-baseline_d0.5             |           23.30 |          0.7805
-baseline_d1               |           23.23 |          0.7796
-baseline_d1.5             |           23.28 |          0.7808
-fr_weight_0.3_d0.5        |           23.27 |          0.7811
-fr_weight_0.3_d1          |           23.23 |          0.7794
-fr_weight_0.3_d1.5        |           23.30 |          0.7812
-fr_weight_0.5_d0.5        |           23.22 |          0.7768
-fr_weight_0.5_d1          |           23.26 |          0.7801
-fr_weight_0.5_d1.5        |           23.29 |          0.7803
-fr_weight_1.0_d0.5        |           23.21 |          0.7776
-fr_weight_1.0_d1          |           23.25 |          0.7791
-fr_weight_1.0_d1.5        |           23.28 |          0.7806
+baseline_d0.5             |           31.63 |          0.9876
+baseline_d1               |           31.54 |          0.9878
+baseline_d1.5             |           31.56 |          0.9876
+fr_weight_0.3_d0.5        |           19.28 |          0.8640
+fr_weight_0.3_d1          |           19.18 |          0.8630
+fr_weight_0.3_d1.5        |           19.17 |          0.8654
+fr_weight_0.5_d0.5        |           19.66 |          0.8533
+fr_weight_0.5_d1          |           19.23 |          0.8622
+fr_weight_0.5_d1.5        |           19.34 |          0.8649
+fr_weight_1.0_d0.5        |           19.76 |          0.8550
+fr_weight_1.0_d1          |           19.19 |          0.8624
+fr_weight_1.0_d1.5        |           19.02 |          0.8645
 
 TABLE 3: IMPROVEMENTS OVER BASELINE (per D_weight)
 ------------------------------------------------------------------------------------------------------------------------
 Configuration             | Baseline             | ΔGenuine     | ΔImpostor    | ΔEER       | ΔTAR@1%     
 ------------------------------------------------------------------------------------------------------------------------
-fr_weight_0.3_d0.5        | baseline_d0.5        |      -0.0095 |      -0.0913 |      +0.00 |        +0.00
-fr_weight_0.3_d1          | baseline_d1          |      +0.0163 |      +0.1100 |      +0.00 |        +0.00
-fr_weight_0.3_d1.5        | baseline_d1.5        |      +0.0109 |      +0.0811 |      +0.00 |        +0.00
-fr_weight_0.5_d0.5        | baseline_d0.5        |      -0.0100 |      -0.0680 |      +0.00 |        +0.00
-fr_weight_0.5_d1          | baseline_d1          |      +0.0034 |      +0.0091 |      +0.00 |        +0.00
-fr_weight_0.5_d1.5        | baseline_d1.5        |      +0.0063 |      +0.0324 |      +0.00 |        +0.00
-fr_weight_1.0_d0.5        | baseline_d0.5        |      +0.0006 |      +0.0138 |      +0.00 |        +0.00
-fr_weight_1.0_d1          | baseline_d1          |      +0.0049 |      +0.0296 |      +0.00 |        +0.00
-fr_weight_1.0_d1.5        | baseline_d1.5        |      +0.0053 |      +0.0398 |      +0.00 |        +0.00
+fr_weight_0.3_d0.5        | baseline_d0.5        |      -0.1530 |      -0.1715 |      +0.00 |        +0.00
+fr_weight_0.3_d1          | baseline_d1          |      -0.1185 |      -0.0525 |      +0.00 |        +0.00
+fr_weight_0.3_d1.5        | baseline_d1.5        |      -0.1293 |      -0.0549 |      +0.00 |        +0.00
+fr_weight_0.5_d0.5        | baseline_d0.5        |      -0.0920 |      -0.0106 |      +0.00 |        +0.00
+fr_weight_0.5_d1          | baseline_d1          |      -0.1523 |      -0.1615 |      +0.00 |        +0.00
+fr_weight_0.5_d1.5        | baseline_d1.5        |      -0.1567 |      -0.0927 |      +0.00 |        +0.00
+fr_weight_1.0_d0.5        | baseline_d0.5        |      -0.1374 |      -0.1222 |      +0.00 |        +0.00
+fr_weight_1.0_d1          | baseline_d1          |      -0.1107 |      -0.0139 |      +0.00 |        +0.00
+fr_weight_1.0_d1.5        | baseline_d1.5        |      -0.1404 |      -0.0874 |      +0.00 |        +0.00
 
 Note: Each FR configuration is compared to baseline with the same D_weight.
       Δ indicates change from baseline. For EER, negative is better (lower error).
@@ -62,9 +62,9 @@ STATISTICAL SIGNIFICANCE ANALYSIS (vs baseline with same D_weight)
 
 fr_weight_0.3_d0.5 vs baseline_d0.5:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: -0.0095
-  t-statistic: -4.5947
-  p-value: 0.000005
+  Genuine Similarity Improvement: -0.1530
+  t-statistic: -33.7157
+  p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
   EER Improvement: +0.00%
@@ -73,8 +73,8 @@ fr_weight_0.3_d0.5 vs baseline_d0.5:
 
 fr_weight_0.3_d1 vs baseline_d1:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0163
-  t-statistic: 8.3393
+  Genuine Similarity Improvement: -0.1185
+  t-statistic: -35.4804
   p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
@@ -84,8 +84,8 @@ fr_weight_0.3_d1 vs baseline_d1:
 
 fr_weight_0.3_d1.5 vs baseline_d1.5:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0109
-  t-statistic: 6.0974
+  Genuine Similarity Improvement: -0.1293
+  t-statistic: -34.0970
   p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
@@ -95,8 +95,8 @@ fr_weight_0.3_d1.5 vs baseline_d1.5:
 
 fr_weight_0.5_d0.5 vs baseline_d0.5:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: -0.0100
-  t-statistic: -5.5332
+  Genuine Similarity Improvement: -0.0920
+  t-statistic: -31.7678
   p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
@@ -106,10 +106,10 @@ fr_weight_0.5_d0.5 vs baseline_d0.5:
 
 fr_weight_0.5_d1 vs baseline_d1:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0034
-  t-statistic: 1.4890
-  p-value: 0.136805
-  Significant (p < 0.05): NO ✗
+  Genuine Similarity Improvement: -0.1523
+  t-statistic: -33.9239
+  p-value: 0.000000
+  Significant (p < 0.05): YES ✓
 
   EER Improvement: +0.00%
     Baseline EER: 0.00%
@@ -117,9 +117,9 @@ fr_weight_0.5_d1 vs baseline_d1:
 
 fr_weight_0.5_d1.5 vs baseline_d1.5:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0063
-  t-statistic: 3.3740
-  p-value: 0.000769
+  Genuine Similarity Improvement: -0.1567
+  t-statistic: -38.1449
+  p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
   EER Improvement: +0.00%
@@ -128,10 +128,10 @@ fr_weight_0.5_d1.5 vs baseline_d1.5:
 
 fr_weight_1.0_d0.5 vs baseline_d0.5:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0006
-  t-statistic: 0.3465
-  p-value: 0.729077
-  Significant (p < 0.05): NO ✗
+  Genuine Similarity Improvement: -0.1374
+  t-statistic: -32.9968
+  p-value: 0.000000
+  Significant (p < 0.05): YES ✓
 
   EER Improvement: +0.00%
     Baseline EER: 0.00%
@@ -139,9 +139,9 @@ fr_weight_1.0_d0.5 vs baseline_d0.5:
 
 fr_weight_1.0_d1 vs baseline_d1:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0049
-  t-statistic: 2.1416
-  p-value: 0.032465
+  Genuine Similarity Improvement: -0.1107
+  t-statistic: -34.4995
+  p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
   EER Improvement: +0.00%
@@ -150,9 +150,9 @@ fr_weight_1.0_d1 vs baseline_d1:
 
 fr_weight_1.0_d1.5 vs baseline_d1.5:
 ------------------------------------------------------------
-  Genuine Similarity Improvement: +0.0053
-  t-statistic: 2.8419
-  p-value: 0.004576
+  Genuine Similarity Improvement: -0.1404
+  t-statistic: -35.9501
+  p-value: 0.000000
   Significant (p < 0.05): YES ✓
 
   EER Improvement: +0.00%
@@ -175,8 +175,8 @@ KEY FINDINGS
    TAR: 0.00%
    EER: 0.00%
 
-4. Best Genuine Similarity: fr_weight_0.3_d1
-   Similarity: 0.9551
+4. Best Genuine Similarity: baseline_d1
+   Similarity: 0.9845
 
 5. RECOMMENDED CONFIGURATION: baseline_d0.5
    Reason: Best performance on both EER and TAR@FAR metrics

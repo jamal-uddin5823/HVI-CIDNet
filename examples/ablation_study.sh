@@ -114,12 +114,16 @@ train_with_fr() {
     NAME=$1
     FR_WEIGHT=$2
     D_WEIGHT=$3
+    START_EPOCH=${4:-0}  # Optional 4th argument for start epoch, default 0
     WEIGHTS_DIR="./weights/ablation/$NAME/d_${D_WEIGHT}"
 
     echo ""
     echo "========================================================================"
     echo "Training: $NAME (FR weight=$FR_WEIGHT)"
     echo "Training with D weight = $D_WEIGHT"
+    if [ $START_EPOCH -gt 0 ]; then
+        echo "Resuming from epoch $START_EPOCH"
+    fi
     echo "========================================================================"
 
     mkdir -p $WEIGHTS_DIR
@@ -138,6 +142,7 @@ train_with_fr() {
         --FR_weight=$FR_WEIGHT \
         --D_weight=$D_WEIGHT \
         $ADAFACE_ARG \
+        --start_epoch=$START_EPOCH \
         --threads=4 \
         --snapshots=10 > logs/fr_${FR_WEIGHT}_d_${D_WEIGHT}_$NAME_$(date +"%Y%m%d_%H%M%S").log 2>&1
 
@@ -163,13 +168,34 @@ echo "Starting ablation study..."
 echo ""
 
 #1. Baseline (no FR loss)
-for d_weight in 0.5 1 1.5; do
-    train_baseline "baseline" $d_weight
-done
+# for d_weight in 0.5 1 1.5; do
+#     train_baseline "baseline" $d_weight
+# done
 
 #2. FR weight = 0.3
 for d_weight in 0.5 1 1.5; do
-    train_with_fr "fr_weight_0.3" 0.3 $d_weight
+    if [ "$d_weight" == "0.5" ]; then
+        # Resume from epoch 30 for d_weight=0.5
+        RESUME_MODEL="./weights/ablation/fr_weight_0.3/d_0.5/epoch_30.pth"
+        if [ -f "$RESUME_MODEL" ]; then
+            echo "Resuming fr_weight_0.3 with d_weight=0.5 from epoch 31"
+            CIDNET_ARG_TEMP="--pretrained_model=$RESUME_MODEL"
+            START_EPOCH=30
+        else
+            echo "⚠ Resume model not found: $RESUME_MODEL"
+            echo "Starting from scratch instead"
+            CIDNET_ARG_TEMP="$CIDNET_ARG"
+            START_EPOCH=0
+        fi
+        
+        # Temporarily override CIDNET_ARG for this specific run
+        SAVED_CIDNET_ARG="$CIDNET_ARG"
+        CIDNET_ARG="$CIDNET_ARG_TEMP"
+        train_with_fr "fr_weight_0.3" 0.3 $d_weight $START_EPOCH
+        CIDNET_ARG="$SAVED_CIDNET_ARG"
+    else
+        train_with_fr "fr_weight_0.3" 0.3 $d_weight
+    fi
 done
 
 #3. FR weight = 0.5 (recommended)

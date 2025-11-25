@@ -4,17 +4,17 @@ Statistical Significance Analysis
 Number of genuine pairs tested: 1000
 
 1. McNemar's Test (for classification accuracy):
-   Baseline correct, FR wrong: 14
-   Baseline wrong, FR correct: 21
-   Chi-square statistic: 1.0286
-   p-value: 0.3105
+   Baseline correct, FR wrong: 52
+   Baseline wrong, FR correct: 56
+   Chi-square statistic: 0.0833
+   p-value: 0.7728
    Statistically significant at p < 0.05: False
 
 2. Paired t-test (for similarity scores):
-   Mean difference (FR - Baseline): -0.0008
-   95% Confidence Interval: [-0.0022, 0.0005]
-   t-statistic: 1.1739
-   p-value: 0.240734
-   Statistically significant at p < 0.05: False
+   Mean difference (FR - Baseline): -0.1192
+   95% Confidence Interval: [-0.1258, -0.1127]
+   t-statistic: 35.6380
+   p-value: 0.000000
+   Statistically significant at p < 0.05: True
 
-CONCLUSION: The improvement from baseline to FR weight=0.5 is NOT statistically significant at p < 0.05.
+CONCLUSION: The improvement from baseline to FR weight=0.5 is STATISTICALLY SIGNIFICANT at p < 0.05.

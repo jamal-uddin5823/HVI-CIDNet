@@ -15,6 +15,7 @@ from loss.losses import *
 from data.scheduler import *
 from tqdm import tqdm
 from datetime import datetime
+from loss.discriminative_face_loss import DiscriminativeMultiLevelFaceLoss
 
 opt = option().parse_args()
 
@@ -46,6 +47,7 @@ def train(epoch):
     torch.autograd.set_detect_anomaly(opt.grad_detect)
     for batch in tqdm(training_data_loader):
         im1, im2, path1, path2 = batch[0], batch[1], batch[2], batch[3]
+        batch_size = im1.shape[0]
         
         # Validate batch before processing
         if torch.isnan(im1).any() or torch.isinf(im1).any():
@@ -79,8 +81,29 @@ def train(epoch):
 
         # Add Face Recognition Perceptual Loss if enabled
         if opt.use_face_loss and FR_loss is not None:
-            fr_loss_value = FR_loss(output_rgb, gt_rgb)
-            loss = loss_rgb + opt.HVI_weight * loss_hvi + fr_loss_value
+            # Sample impostor pairs for discriminative learning
+            if batch_size > 1:
+                # Circular shift strategy for impostor pairs
+                impostor_gt = torch.roll(gt_rgb, shifts=1, dims=0)
+                
+                # Compute discriminative multi-level face loss
+                face_loss_dict = FR_loss(output_rgb, gt_rgb, impostor_gt)
+                fr_loss_value = face_loss_dict['total']
+                
+                # Log face loss components every 100 iterations
+                if iter % 100 == 0:
+                    print(f"\n  Face Loss Components (iter {iter}):")
+                    print(f"    Reconstruction: {face_loss_dict['reconstruction']:.4f}")
+                    print(f"    Contrastive:    {face_loss_dict['contrastive']:.4f}")
+                    print(f"    Triplet:        {face_loss_dict['triplet']:.4f}")
+                    print(f"    Total:          {fr_loss_value:.4f}")
+            else:
+                # Fallback for batch_size=1 (no impostor available)
+                fr_loss_value = FR_loss(output_rgb, gt_rgb, gt_rgb)['total']
+                if iter % 100 == 0:
+                    print(f"\n  Warning: Batch size = 1, using paired loss only")
+            
+            loss = loss_rgb + opt.HVI_weight * loss_hvi + opt.FR_weight * fr_loss_value
         else:
             loss = loss_rgb + opt.HVI_weight * loss_hvi
 
@@ -248,14 +271,25 @@ def init_loss():
     # Face Recognition Perceptual Loss (optional, for face-specific enhancement)
     FR_loss = None
     if opt.use_face_loss:
-        print("===> Initializing Face Recognition Perceptual Loss")
-        FR_loss = FaceRecognitionPerceptualLoss(
-            model_arch=opt.FR_model_arch,
-            model_path=opt.FR_model_path,
-            loss_weight=opt.FR_weight,
-            feature_distance=opt.FR_feature_distance
+        print("===> Initializing Discriminative Multi-Level Face Loss")
+        FR_loss = DiscriminativeMultiLevelFaceLoss(
+            recognizer_path=opt.FR_model_path,
+            architecture=opt.FR_model_arch,
+            feature_layers=['layer2', 'layer3', 'layer4', 'fc'],
+            layer_weights=[0.2, 0.4, 0.8, 1.0],
+            use_contrastive=True,
+            contrastive_margin=opt.contrastive_margin,
+            contrastive_weight=opt.contrastive_weight,
+            use_triplet=True,
+            triplet_margin=opt.triplet_margin,
+            triplet_weight=opt.triplet_weight,
+            temperature=opt.face_temperature
         ).cuda()
-        print(f"===> Face Recognition Loss enabled with weight={opt.FR_weight}")
+        print(f"===> Discriminative Multi-Level Face Loss enabled with weight={opt.FR_weight}")
+        print(f"     Architecture: {opt.FR_model_arch}")
+        print(f"     Features: {['layer2', 'layer3', 'layer4', 'fc']}")
+        print(f"     Contrastive: margin={opt.contrastive_margin}, weight={opt.contrastive_weight}, temp={opt.face_temperature}")
+        print(f"     Triplet: margin={opt.triplet_margin}, weight={opt.triplet_weight}")
 
     return L1_loss, P_loss, E_loss, D_loss, FR_loss
 

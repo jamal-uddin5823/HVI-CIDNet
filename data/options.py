@@ -73,6 +73,18 @@ def option():
     parser.add_argument('--FR_feature_distance', type=str, default='mse', choices=['mse', 'l1', 'cosine'],
                         help='Distance metric for face features')
     
+    # Discriminative Multi-Level Face Loss hyperparameters
+    parser.add_argument('--contrastive_margin', type=float, default=0.4,
+                        help='Margin for contrastive loss (impostor separation)')
+    parser.add_argument('--contrastive_weight', type=float, default=1.0,
+                        help='Weight for contrastive loss component')
+    parser.add_argument('--triplet_margin', type=float, default=0.2,
+                        help='Margin for triplet loss')
+    parser.add_argument('--triplet_weight', type=float, default=0.5,
+                        help='Weight for triplet loss component')
+    parser.add_argument('--face_temperature', type=float, default=0.07,
+                        help='Temperature for contrastive loss (lower = harder negatives)')
+    
     # use random gamma function (enhancement curve) to improve generalization
     parser.add_argument('--gamma', type=bool, default=False)
     parser.add_argument('--start_gamma', type=int, default=60)
