@@ -193,10 +193,9 @@ def main():
     # Create base directory if it doesn't exist
     os.makedirs(args.data_dir, exist_ok=True)
 
-    # Determine zip file paths (in parent directory of data_dir)
-    parent_dir = os.path.dirname(args.data_dir) if os.path.dirname(args.data_dir) else './datasets'
-    train_zip = args.train_zip or os.path.join(parent_dir, 'LaPa-Face-train.zip')
-    test_zip = args.test_zip or os.path.join(parent_dir, 'LaPa-Face-test.zip')
+    # Determine zip file paths (in the data_dir itself)
+    train_zip = args.train_zip or os.path.join(args.data_dir, 'LaPa-Face-train.zip')
+    test_zip = args.test_zip or os.path.join(args.data_dir, 'LaPa-Face-test.zip')
 
     # Step 1: Extract zip files (if not verify_only mode)
     if not args.verify_only:
@@ -210,7 +209,7 @@ def main():
 
         if os.path.exists(train_zip):
             print(f"Found train zip: {train_zip}")
-            if extract_zip(train_zip, os.path.dirname(args.data_dir)):
+            if extract_zip(train_zip, args.data_dir):
                 extracted_any = True
         else:
             print(f"⚠ Train zip not found at: {train_zip}")
@@ -219,7 +218,7 @@ def main():
 
         if os.path.exists(test_zip):
             print(f"Found test zip: {test_zip}")
-            if extract_zip(test_zip, os.path.dirname(args.data_dir)):
+            if extract_zip(test_zip, args.data_dir):
                 extracted_any = True
         else:
             print(f"⚠ Test zip not found at: {test_zip}")
