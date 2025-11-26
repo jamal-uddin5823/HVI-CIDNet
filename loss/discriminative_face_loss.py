@@ -78,45 +78,64 @@ class DiscriminativeMultiLevelFaceLoss(nn.Module):
         """Register hooks to capture intermediate features"""
         def get_activation(name):
             def hook(module, input, output):
-                self.feature_maps[name] = output
+                # Detach to prevent gradient accumulation
+                self.feature_maps[name] = output.detach()
             return hook
-        
+
+        # Keep track of registered hooks to avoid duplicates
+        registered_layers = set()
+
         for name, module in self.recognizer.named_modules():
             for layer in self.feature_layers:
-                if layer in name:
-                    module.register_forward_hook(get_activation(name))
-                    break
+                # Use exact match for 'fc' and endswith for other layers to avoid duplicates
+                if layer == 'fc' and name == 'output_layer':
+                    if layer not in registered_layers:
+                        module.register_forward_hook(get_activation(name))
+                        registered_layers.add(layer)
+                        break
+                elif layer != 'fc' and name.endswith(layer):
+                    if layer not in registered_layers:
+                        module.register_forward_hook(get_activation(name))
+                        registered_layers.add(layer)
+                        break
     
     def extract_multi_level_features(self, x):
         """
         Extract features from multiple layers
-        
+
         Args:
             x: [B, 3, H, W] in [0, 1]
         Returns:
-            dict: {layer_name: features}
+            dict: {layer_name: features (detached)}
         """
         # Resize to 112x112
         if x.shape[-2:] != (112, 112):
             x = F.interpolate(x, size=(112, 112), mode='bilinear', align_corners=False)
-        
+
         # Normalize to [-1, 1]
         if x.min() >= 0:
             x = (x - 0.5) / 0.5
-        
-        # Clear previous features
-        self.feature_maps = {}
-        
+
+        # Clear previous features to prevent memory accumulation
+        self.feature_maps.clear()
+
         # Forward pass (hooks capture intermediate features)
         with torch.no_grad():
             final_feat = self.recognizer(x)
-        
-        # Add final feature if not already captured
+
+        # Add final feature if not already captured (detached)
         if 'fc' in self.feature_layers and 'fc' not in self.feature_maps:
-            self.feature_maps['fc'] = final_feat
-        
-        return self.feature_maps.copy()
-    
+            self.feature_maps['fc'] = final_feat.detach()
+
+        # Return detached copy to ensure no gradient graph references
+        return {k: v.detach().clone() for k, v in self.feature_maps.items()}
+
+    def cleanup_memory(self):
+        """Explicitly clean up feature maps to prevent memory leaks"""
+        self.feature_maps.clear()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def reconstruction_loss(self, enhanced_feats, gt_feats):
         """
         Multi-level feature reconstruction (similar to current approach)
@@ -213,12 +232,12 @@ class DiscriminativeMultiLevelFaceLoss(nn.Module):
     def forward(self, enhanced, ground_truth, impostor=None):
         """
         Complete discriminative loss computation
-        
+
         Args:
             enhanced: Enhanced low-light images [B, 3, H, W]
             ground_truth: Ground truth images [B, 3, H, W]
             impostor: Different identity images [B, 3, H, W] (REQUIRED for discrimination)
-        
+
         Returns:
             dict: {
                 'total': total loss,
@@ -227,24 +246,40 @@ class DiscriminativeMultiLevelFaceLoss(nn.Module):
                 'triplet': triplet margin loss
             }
         """
-        # Extract multi-level features
-        enhanced_feats = self.extract_multi_level_features(enhanced)
-        gt_feats = self.extract_multi_level_features(ground_truth)
-        impostor_feats = self.extract_multi_level_features(impostor) if impostor is not None else None
-        
-        # Component losses
-        loss_recon = self.reconstruction_loss(enhanced_feats, gt_feats)
-        loss_contrastive = self.supervised_contrastive_loss(enhanced_feats, gt_feats, impostor_feats)
-        loss_triplet = self.triplet_margin_loss(enhanced_feats, gt_feats, impostor_feats)
-        
-        # Total loss
-        total = (loss_recon + 
-                 self.contrastive_weight * loss_contrastive + 
-                 self.triplet_weight * loss_triplet)
-        
-        return {
-            'total': total,
-            'reconstruction': loss_recon,
-            'contrastive': loss_contrastive,
-            'triplet': loss_triplet
-        }
+        try:
+            # Extract multi-level features
+            enhanced_feats = self.extract_multi_level_features(enhanced)
+            gt_feats = self.extract_multi_level_features(ground_truth)
+            impostor_feats = self.extract_multi_level_features(impostor) if impostor is not None else None
+
+            # Component losses
+            loss_recon = self.reconstruction_loss(enhanced_feats, gt_feats)
+            loss_contrastive = self.supervised_contrastive_loss(enhanced_feats, gt_feats, impostor_feats)
+            loss_triplet = self.triplet_margin_loss(enhanced_feats, gt_feats, impostor_feats)
+
+            # Total loss
+            total = (loss_recon +
+                     self.contrastive_weight * loss_contrastive +
+                     self.triplet_weight * loss_triplet)
+
+            # Clear feature maps after computation to free memory
+            self.feature_maps.clear()
+
+            return {
+                'total': total,
+                'reconstruction': loss_recon,
+                'contrastive': loss_contrastive,
+                'triplet': loss_triplet
+            }
+        except RuntimeError as e:
+            # Handle CUDA errors gracefully
+            print(f"Error in face loss computation: {e}")
+            self.cleanup_memory()
+            # Return zero losses to allow training to continue
+            device = enhanced.device
+            return {
+                'total': torch.tensor(0.0, device=device),
+                'reconstruction': torch.tensor(0.0, device=device),
+                'contrastive': torch.tensor(0.0, device=device),
+                'triplet': torch.tensor(0.0, device=device)
+            }

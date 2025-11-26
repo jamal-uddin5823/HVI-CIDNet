@@ -129,7 +129,11 @@ def train(epoch):
             loss = loss_rgb + opt.HVI_weight * loss_hvi
 
         iter += 1
-        
+
+        # Periodic memory cleanup for face loss (every 50 iterations)
+        if opt.use_face_loss and FR_loss is not None and iter % 50 == 0:
+            FR_loss.cleanup_memory()
+
         optimizer.zero_grad()
         
         try:
@@ -183,6 +187,14 @@ def train(epoch):
                 os.mkdir(opt.val_folder+'training') 
             output_img.save(opt.val_folder+'training/test.png')
             gt_img.save(opt.val_folder+'training/gt.png')
+
+    # Cleanup at end of epoch
+    if opt.use_face_loss and FR_loss is not None:
+        FR_loss.cleanup_memory()
+
+    torch.cuda.empty_cache()
+    gc.collect()
+
     return loss_print, pic_cnt
                 
 
