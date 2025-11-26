@@ -14,6 +14,21 @@ Dataset Download Links:
 - Train: https://drive.google.com/file/d/1bmFIy1In-OnTv-Fb1kvsk46hojJrpINb/view?usp=sharing
 - Test:  https://drive.google.com/file/d/1neJZq1C9HkXCO_eqdPRijiX4jvggF7mF/view?usp=sharing
 
+File Structure:
+    LaPa-Face-train.zip -> extracts to -> LaPa-Face/train/
+    LaPa-Face-test.zip  -> extracts to -> LaPa-Face/test/
+
+Expected structure after extraction:
+    datasets/LaPa-Face/
+    ├── train/
+    │   ├── underexposed/
+    │   ├── normal/
+    │   └── seg/
+    └── test/
+        ├── underexposed/
+        ├── normal/
+        └── seg/
+
 Usage:
     python prepare_lapaface_dataset.py --data_dir ./datasets/LaPa-Face
     python prepare_lapaface_dataset.py --data_dir ./datasets/LaPa-Face --verify_only
@@ -58,16 +73,12 @@ def verify_directory_structure(base_dir, split='train'):
     """Verify that the expected directory structure exists"""
     print(f"\nVerifying {split} directory structure...")
 
-    if split == 'train':
-        expected_dir = os.path.join(base_dir, 'LaPa-Face')
-    else:  # test
-        expected_dir = os.path.join(base_dir, 'LaPa-Test')
-
+    split_dir = os.path.join(base_dir, split)
     required_dirs = ['underexposed', 'normal', 'seg']
     all_exist = True
 
     for subdir in required_dirs:
-        full_path = os.path.join(expected_dir, subdir)
+        full_path = os.path.join(split_dir, subdir)
         if os.path.exists(full_path):
             num_files = len(get_image_files(full_path))
             print(f"  ✓ {subdir:15s} exists ({num_files} images)")
@@ -75,7 +86,7 @@ def verify_directory_structure(base_dir, split='train'):
             print(f"  ✗ {subdir:15s} NOT FOUND")
             all_exist = False
 
-    return all_exist, expected_dir
+    return all_exist, split_dir
 
 
 def check_matching_pairs(underexposed_dir, normal_dir):
@@ -108,49 +119,6 @@ def check_matching_pairs(underexposed_dir, normal_dir):
                 print(f"    - {f}")
 
     return len(matching), len(only_underexposed), len(only_normal)
-
-
-def reorganize_dataset(base_dir):
-    """Reorganize extracted dataset into standard structure"""
-    print("\nReorganizing dataset structure...")
-
-    # Expected structure after extraction
-    train_source = os.path.join(base_dir, 'LaPa-Face')
-    test_source = os.path.join(base_dir, 'LaPa-Test')
-
-    # Target structure
-    train_target = os.path.join(base_dir, 'train')
-    test_target = os.path.join(base_dir, 'test')
-
-    # Create target directories if they don't exist
-    os.makedirs(train_target, exist_ok=True)
-    os.makedirs(test_target, exist_ok=True)
-
-    # Move/symlink train data
-    if os.path.exists(train_source) and not os.path.exists(os.path.join(train_target, 'underexposed')):
-        for subdir in ['underexposed', 'normal', 'seg']:
-            source = os.path.join(train_source, subdir)
-            target = os.path.join(train_target, subdir)
-            if os.path.exists(source) and not os.path.exists(target):
-                os.rename(source, target)
-                print(f"  ✓ Moved train/{subdir}")
-
-    # Move/symlink test data
-    if os.path.exists(test_source) and not os.path.exists(os.path.join(test_target, 'underexposed')):
-        for subdir in ['underexposed', 'normal', 'seg']:
-            source = os.path.join(test_source, subdir)
-            target = os.path.join(test_target, subdir)
-            if os.path.exists(source) and not os.path.exists(target):
-                os.rename(source, target)
-                print(f"  ✓ Moved test/{subdir}")
-
-    # Clean up empty directories
-    for old_dir in [train_source, test_source]:
-        if os.path.exists(old_dir) and not os.listdir(old_dir):
-            os.rmdir(old_dir)
-            print(f"  ✓ Removed empty directory {old_dir}")
-
-    return train_target, test_target
 
 
 def get_dataset_statistics(base_dir):
@@ -206,13 +174,13 @@ def get_dataset_statistics(base_dir):
 def main():
     parser = argparse.ArgumentParser(description='Prepare LaPa-Face dataset for training')
     parser.add_argument('--data_dir', type=str, default='./datasets/LaPa-Face',
-                        help='Base directory for LaPa-Face dataset')
+                        help='Base directory for LaPa-Face dataset (default: ./datasets/LaPa-Face)')
     parser.add_argument('--verify_only', action='store_true',
                         help='Only verify existing dataset without extraction')
     parser.add_argument('--train_zip', type=str, default=None,
-                        help='Path to LaPa-Face-train.zip (if not in data_dir)')
+                        help='Path to LaPa-Face-train.zip (default: datasets/LaPa-Face-train.zip)')
     parser.add_argument('--test_zip', type=str, default=None,
-                        help='Path to LaPa-Face-test.zip (if not in data_dir)')
+                        help='Path to LaPa-Face-test.zip (default: datasets/LaPa-Face-test.zip)')
 
     args = parser.parse_args()
 
@@ -225,39 +193,52 @@ def main():
     # Create base directory if it doesn't exist
     os.makedirs(args.data_dir, exist_ok=True)
 
-    # Determine zip file paths
-    train_zip = args.train_zip or os.path.join(os.path.dirname(args.data_dir), 'LaPa-Face-train.zip')
-    test_zip = args.test_zip or os.path.join(os.path.dirname(args.data_dir), 'LaPa-Face-test.zip')
+    # Determine zip file paths (in parent directory of data_dir)
+    parent_dir = os.path.dirname(args.data_dir) if os.path.dirname(args.data_dir) else './datasets'
+    train_zip = args.train_zip or os.path.join(parent_dir, 'LaPa-Face-train.zip')
+    test_zip = args.test_zip or os.path.join(parent_dir, 'LaPa-Face-test.zip')
 
     # Step 1: Extract zip files (if not verify_only mode)
     if not args.verify_only:
         print("\nStep 1: Extracting dataset...")
         print("-" * 70)
+        print(f"Target directory: {args.data_dir}")
+        print(f"Note: Zip files extract to train/ and test/ subdirectories")
+        print()
+
+        extracted_any = False
 
         if os.path.exists(train_zip):
-            extract_zip(train_zip, args.data_dir)
+            print(f"Found train zip: {train_zip}")
+            if extract_zip(train_zip, os.path.dirname(args.data_dir)):
+                extracted_any = True
         else:
             print(f"⚠ Train zip not found at: {train_zip}")
             print(f"  Please download from: https://drive.google.com/file/d/1bmFIy1In-OnTv-Fb1kvsk46hojJrpINb/view?usp=sharing")
+            print(f"  Save as: {train_zip}")
 
         if os.path.exists(test_zip):
-            extract_zip(test_zip, args.data_dir)
+            print(f"Found test zip: {test_zip}")
+            if extract_zip(test_zip, os.path.dirname(args.data_dir)):
+                extracted_any = True
         else:
             print(f"⚠ Test zip not found at: {test_zip}")
             print(f"  Please download from: https://drive.google.com/file/d/1neJZq1C9HkXCO_eqdPRijiX4jvggF7mF/view?usp=sharing")
+            print(f"  Save as: {test_zip}")
 
-        # Step 2: Reorganize directory structure
-        print("\nStep 2: Reorganizing directory structure...")
-        print("-" * 70)
-        train_dir, test_dir = reorganize_dataset(args.data_dir)
+        if not extracted_any:
+            print()
+            print("✗ No zip files found to extract")
+            print("  Please download the dataset files first")
     else:
         print("\nVerify-only mode: Skipping extraction")
-        train_dir = os.path.join(args.data_dir, 'train')
-        test_dir = os.path.join(args.data_dir, 'test')
 
-    # Step 3: Verify structure
-    print("\nStep 3: Verifying dataset structure...")
+    # Step 2: Verify structure
+    print("\nStep 2: Verifying dataset structure...")
     print("-" * 70)
+
+    train_dir = os.path.join(args.data_dir, 'train')
+    test_dir = os.path.join(args.data_dir, 'test')
 
     train_valid = os.path.exists(train_dir)
     test_valid = os.path.exists(test_dir)
@@ -286,9 +267,9 @@ def main():
     else:
         print(f"✗ Test directory not found: {test_dir}")
 
-    # Step 4: Check matching pairs
+    # Step 3: Check matching pairs
     if train_valid:
-        print("\nStep 4: Checking training pairs...")
+        print("\nStep 3: Checking training pairs...")
         print("-" * 70)
         underexposed_dir = os.path.join(train_dir, 'underexposed')
         normal_dir = os.path.join(train_dir, 'normal')
@@ -296,14 +277,14 @@ def main():
             check_matching_pairs(underexposed_dir, normal_dir)
 
     if test_valid:
-        print("\nStep 5: Checking test pairs...")
+        print("\nStep 4: Checking test pairs...")
         print("-" * 70)
         underexposed_dir = os.path.join(test_dir, 'underexposed')
         normal_dir = os.path.join(test_dir, 'normal')
         if os.path.exists(underexposed_dir) and os.path.exists(normal_dir):
             check_matching_pairs(underexposed_dir, normal_dir)
 
-    # Step 5: Dataset statistics
+    # Step 4: Dataset statistics
     get_dataset_statistics(args.data_dir)
 
     # Final status
@@ -313,6 +294,16 @@ def main():
 
     if train_valid and test_valid:
         print("✓ Dataset is ready for training!")
+        print("\nDirectory structure:")
+        print(f"  {args.data_dir}/")
+        print(f"  ├── train/")
+        print(f"  │   ├── underexposed/")
+        print(f"  │   ├── normal/")
+        print(f"  │   └── seg/")
+        print(f"  └── test/")
+        print(f"      ├── underexposed/")
+        print(f"      ├── normal/")
+        print(f"      └── seg/")
         print("\nNext steps:")
         print("  1. Test dataset loader:")
         print(f"     python -m data.lapaface_dataset")
@@ -323,7 +314,10 @@ def main():
         print(f"     ./comparison_lapaface.sh")
     else:
         print("✗ Dataset preparation incomplete")
-        print("\nPlease ensure zip files are downloaded:")
+        print("\nPlease ensure zip files are downloaded and placed in the correct location:")
+        print(f"  Train zip: {train_zip}")
+        print(f"  Test zip:  {test_zip}")
+        print("\nDownload links:")
         print("  - Train: https://drive.google.com/file/d/1bmFIy1In-OnTv-Fb1kvsk46hojJrpINb/view?usp=sharing")
         print("  - Test:  https://drive.google.com/file/d/1neJZq1C9HkXCO_eqdPRijiX4jvggF7mF/view?usp=sharing")
 
