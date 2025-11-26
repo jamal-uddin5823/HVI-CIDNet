@@ -51,6 +51,13 @@ fi
 echo "✓ All prerequisites found" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
+# Define models array for later use in summary
+MODELS=(
+    "baseline_d1.5_reference"
+    "discriminative_fr0.3_d1.5"
+    "discriminative_fr0.5_d1.5"
+)
+
 # # ============================================================================
 # # STEP 1: Evaluate Individual Models
 # # ============================================================================
@@ -115,13 +122,34 @@ echo "STEP 2: Generating Comparison and Thesis Results" | tee -a "$LOG_FILE"
 echo "================================================================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-if [ -f "generate_thesis_results.py" ]; then
+if [ -f "../generate_thesis_results.py" ]; then
     echo "Generating comprehensive comparison..." | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
-    
-    python generate_thesis_results.py \
-        --results_dir="${RESULTS_BASE}" \
+
+    # Create symbolic links with expected names for the script to find
+    mkdir -p "${RESULTS_BASE}/temp_links"
+
+    # Link baseline
+    if [ -d "${RESULTS_BASE}/baseline_d1.5_reference" ]; then
+        ln -sf "$(cd "${RESULTS_BASE}/baseline_d1.5_reference" && pwd)" "${RESULTS_BASE}/temp_links/baseline_d1.5"
+    fi
+
+    # Link discriminative models
+    if [ -d "${RESULTS_BASE}/discriminative_fr0.3_d1.5" ]; then
+        ln -sf "$(cd "${RESULTS_BASE}/discriminative_fr0.3_d1.5" && pwd)" "${RESULTS_BASE}/temp_links/fr_weight_0.3_d1.5"
+    fi
+
+    if [ -d "${RESULTS_BASE}/discriminative_fr0.5_d1.5" ]; then
+        ln -sf "$(cd "${RESULTS_BASE}/discriminative_fr0.5_d1.5" && pwd)" "${RESULTS_BASE}/temp_links/fr_weight_0.5_d1.5"
+    fi
+
+    # Run the script on the temp_links directory
+    python ../generate_thesis_results.py \
+        --results_dir="${RESULTS_BASE}/temp_links" \
         --output_dir="${RESULTS_BASE}" 2>&1 | tee -a "$LOG_FILE"
+
+    # Clean up symbolic links
+    rm -rf "${RESULTS_BASE}/temp_links"
     
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo "" | tee -a "$LOG_FILE"
@@ -133,7 +161,7 @@ if [ -f "generate_thesis_results.py" ]; then
     echo "✓ Thesis results generated" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 else
-    echo "⚠ Warning: generate_thesis_results.py not found, skipping comparison" | tee -a "$LOG_FILE"
+    echo "⚠ Warning: ../generate_thesis_results.py not found, skipping comparison" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 fi
 
