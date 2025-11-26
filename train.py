@@ -198,7 +198,7 @@ def checkpoint(epoch):
     
 def load_datasets():
     print('===> Loading datasets')
-    if opt.lol_v1 or opt.lol_blur or opt.lolv2_real or opt.lolv2_syn or opt.SID or opt.SICE_mix or opt.SICE_grad or opt.fivek or opt.lfw:
+    if opt.lol_v1 or opt.lol_blur or opt.lolv2_real or opt.lolv2_syn or opt.SID or opt.SICE_mix or opt.SICE_grad or opt.fivek or opt.lfw or opt.lapaface:
         if opt.lol_v1:
             train_set = get_lol_training_set(opt.data_train_lol_v1,size=opt.cropSize)
             training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=opt.shuffle)
@@ -251,6 +251,12 @@ def load_datasets():
             train_set = get_lfw_training_set(opt.data_train_lfw, size=opt.cropSize)
             training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=opt.shuffle)
             test_set = get_lfw_eval_set(opt.data_val_lfw)
+            testing_data_loader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=1, shuffle=False)
+
+        elif opt.lapaface:
+            train_set = get_lapaface_training_set(opt.data_train_lapaface, size=opt.cropSize)
+            training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=opt.shuffle)
+            test_set = get_lapaface_eval_set(opt.data_val_lapaface)
             testing_data_loader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=1, shuffle=False)
     else:
         raise Exception("should choose a dataset")
@@ -413,6 +419,11 @@ if __name__ == '__main__':
             if opt.lfw:
                 output_folder = 'lfw/'
                 label_dir = opt.data_valgt_lfw
+                norm_size = True
+
+            if opt.lapaface:
+                output_folder = 'lapaface/'
+                label_dir = opt.data_valgt_lapaface
                 norm_size = True
 
             im_dir = opt.val_folder + output_folder + '**/*.png'
