@@ -58,61 +58,61 @@ MODELS=(
     "discriminative_fr0.5_d1.5"
 )
 
-# # ============================================================================
-# # STEP 1: Evaluate Individual Models
-# # ============================================================================
-# echo "================================================================================" | tee -a "$LOG_FILE"
-# echo "STEP 1: Evaluating Individual Models" | tee -a "$LOG_FILE"
-# echo "================================================================================" | tee -a "$LOG_FILE"
-# echo "" | tee -a "$LOG_FILE"
+# ============================================================================
+# STEP 1: Evaluate Individual Models
+# ============================================================================
+echo "================================================================================" | tee -a "$LOG_FILE"
+echo "STEP 1: Evaluating Individual Models" | tee -a "$LOG_FILE"
+echo "================================================================================" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
 
-# # Models to evaluate
-# MODELS=(
-#     "baseline_d1.5_reference"
-#     "discriminative_fr0.3_d1.5"
-#     "discriminative_fr0.5_d1.5"
-# )
+# Models to evaluate
+MODELS=(
+    "baseline_d1.5_reference"
+    "discriminative_fr0.3_d1.5"
+    "discriminative_fr0.5_d1.5"
+)
 
-# # Evaluate each model
-# for model in "${MODELS[@]}"; do
-#     MODEL_PATH="./weights/${model}/epoch_50.pth"
-#     OUTPUT_DIR="${RESULTS_BASE}/${model}"
+# Evaluate each model
+for model in "${MODELS[@]}"; do
+    MODEL_PATH="./weights/${model}/epoch_50.pth"
+    OUTPUT_DIR="${RESULTS_BASE}/${model}"
     
-#     echo "------------------------------------------------------------------------" | tee -a "$LOG_FILE"
-#     echo "Evaluating: ${model}" | tee -a "$LOG_FILE"
-#     echo "------------------------------------------------------------------------" | tee -a "$LOG_FILE"
-#     echo "  Model: ${MODEL_PATH}" | tee -a "$LOG_FILE"
-#     echo "  Output: ${OUTPUT_DIR}" | tee -a "$LOG_FILE"
-#     echo "" | tee -a "$LOG_FILE"
+    echo "------------------------------------------------------------------------" | tee -a "$LOG_FILE"
+    echo "Evaluating: ${model}" | tee -a "$LOG_FILE"
+    echo "------------------------------------------------------------------------" | tee -a "$LOG_FILE"
+    echo "  Model: ${MODEL_PATH}" | tee -a "$LOG_FILE"
+    echo "  Output: ${OUTPUT_DIR}" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
     
-#     # Check if model exists
-#     if [ ! -f "$MODEL_PATH" ]; then
-#         echo "⚠ Warning: Model not found, skipping: $MODEL_PATH" | tee -a "$LOG_FILE"
-#         echo "" | tee -a "$LOG_FILE"
-#         continue
-#     fi
+    # Check if model exists
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo "⚠ Warning: Model not found, skipping: $MODEL_PATH" | tee -a "$LOG_FILE"
+        echo "" | tee -a "$LOG_FILE"
+        continue
+    fi
     
-#     # Run evaluation
-#     python eval_face_verification.py \
-#         --model="${MODEL_PATH}" \
-#         --test_dir="${DATASET_DIR}" \
-#         --pairs_file="${PAIRS_FILE}" \
-#         --face_weights="${FACE_WEIGHTS}" \
-#         --output_dir="${OUTPUT_DIR}" 2>&1 | tee -a "$LOG_FILE"
+    # Run evaluation
+    python eval_face_verification.py \
+        --model="${MODEL_PATH}" \
+        --test_dir="${DATASET_DIR}" \
+        --pairs_file="${PAIRS_FILE}" \
+        --face_weights="${FACE_WEIGHTS}" \
+        --output_dir="${OUTPUT_DIR}" 2>&1 | tee -a "$LOG_FILE"
     
-#     if [ ${PIPESTATUS[0]} -ne 0 ]; then
-#         echo "" | tee -a "$LOG_FILE"
-#         echo "✗ Evaluation failed for ${model}" | tee -a "$LOG_FILE"
-#         exit 1
-#     fi
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo "" | tee -a "$LOG_FILE"
+        echo "✗ Evaluation failed for ${model}" | tee -a "$LOG_FILE"
+        exit 1
+    fi
     
-#     echo "" | tee -a "$LOG_FILE"
-#     echo "✓ Completed: ${model}" | tee -a "$LOG_FILE"
-#     echo "" | tee -a "$LOG_FILE"
-# done
+    echo "" | tee -a "$LOG_FILE"
+    echo "✓ Completed: ${model}" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+done
 
-# echo "✓ All model evaluations completed" | tee -a "$LOG_FILE"
-# echo "" | tee -a "$LOG_FILE"
+echo "✓ All model evaluations completed" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
 
 # ============================================================================
 # STEP 2: Generate Comparison and Thesis Results
@@ -122,7 +122,7 @@ echo "STEP 2: Generating Comparison and Thesis Results" | tee -a "$LOG_FILE"
 echo "================================================================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-if [ -f "../generate_thesis_results.py" ]; then
+if [ -f "generate_thesis_results.py" ]; then
     echo "Generating comprehensive comparison..." | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 
@@ -144,7 +144,7 @@ if [ -f "../generate_thesis_results.py" ]; then
     fi
 
     # Run the script on the temp_links directory
-    python ../generate_thesis_results.py \
+    python generate_thesis_results.py \
         --results_dir="${RESULTS_BASE}/temp_links" \
         --output_dir="${RESULTS_BASE}" 2>&1 | tee -a "$LOG_FILE"
 
@@ -161,7 +161,7 @@ if [ -f "../generate_thesis_results.py" ]; then
     echo "✓ Thesis results generated" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 else
-    echo "⚠ Warning: ../generate_thesis_results.py not found, skipping comparison" | tee -a "$LOG_FILE"
+    echo "⚠ Warning: generate_thesis_results.py not found, skipping comparison" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 fi
 

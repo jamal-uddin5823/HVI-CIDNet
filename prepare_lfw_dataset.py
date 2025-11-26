@@ -354,8 +354,8 @@ def prepare_lfw_lowlight(
                 low_light_array = synthesize_low_light_image(
                     img_array,
                     apply_light_reduction=True,
-                    apply_noise=False,
-                    apply_white_balance=False,
+                    apply_noise=True,
+                    apply_white_balance=True,
                     apply_blur=enable_blur,  # Default: False (preserves identity)
                     reduction_factor=reduction_factor,
                     shot_noise_scale=shot_noise,
