@@ -66,6 +66,7 @@ python train.py \
     --FR_weight=0.3 \
     --FR_model_path=./weights/adaface/adaface_ir50_webface4m.ckpt \
     --D_weight=1.5 \
+    --start_epoch=40 \
     --nEpochs=50 \
     --contrastive_margin=0.4 \
     --contrastive_weight=1.0 \
