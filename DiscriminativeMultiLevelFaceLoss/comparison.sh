@@ -13,12 +13,16 @@ set -o pipefail
 # Trap signals to ensure clean exit on interrupt
 trap 'echo "Script interrupted! Exiting..."; exit 130' INT TERM
 
+# Enable CUDA error debugging
+export CUDA_LAUNCH_BLOCKING=1
+
 echo "=========================================="
 echo "Model Comparison Study"
 echo "=========================================="
 echo "Dataset: LFW_lowlight"
 echo "Epochs: 50"
 echo "Models to train: 3"
+echo "CUDA_LAUNCH_BLOCKING: enabled"
 echo "=========================================="
 
 # Create directories for storing models

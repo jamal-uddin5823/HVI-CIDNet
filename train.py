@@ -16,8 +16,14 @@ from data.scheduler import *
 from tqdm import tqdm
 from datetime import datetime
 from loss.discriminative_face_loss import DiscriminativeMultiLevelFaceLoss
+import gc
 
 opt = option().parse_args()
+
+# Enable CUDA error checking for debugging
+if os.environ.get('CUDA_LAUNCH_BLOCKING') != '1':
+    os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+    print("CUDA_LAUNCH_BLOCKING enabled for debugging")
 
 def seed_torch():
     seed = random.randint(1, 1000000)
@@ -35,6 +41,15 @@ def train_init():
     cuda = opt.gpu_mode
     if cuda and not torch.cuda.is_available():
         raise Exception("No GPU found, please run without --cuda")
+    
+    # Set CUDA memory allocation strategy
+    if cuda:
+        torch.cuda.empty_cache()
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+        # Enable TF32 for better performance on Ampere GPUs
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     
 def train(epoch):
     model.train()
@@ -63,8 +78,14 @@ def train(epoch):
         im1 = torch.clamp(im1, 0, 1)
         im2 = torch.clamp(im2, 0, 1)
         
-        im1 = im1.cuda()
-        im2 = im2.cuda()
+        try:
+            im1 = im1.cuda(non_blocking=True)
+            im2 = im2.cuda(non_blocking=True)
+        except RuntimeError as e:
+            print(f"CUDA error loading batch to GPU: {e}")
+            torch.cuda.empty_cache()
+            gc.collect()
+            continue
         
         # use random gamma function (enhancement curve) to improve generalization
         if opt.gamma:
@@ -109,11 +130,23 @@ def train(epoch):
 
         iter += 1
         
+        optimizer.zero_grad()
+        
+        try:
+            loss.backward()
+        except RuntimeError as e:
+            print(f"\nCUDA error during backward pass: {e}")
+            print(f"  Iteration: {iter}, Epoch: {epoch}")
+            print(f"  Loss value: {loss.item() if torch.isfinite(loss) else 'Non-finite'}")
+            print(f"  Output range: [{output_rgb.min().item()}, {output_rgb.max().item()}]")
+            print(f"  Clearing CUDA cache and skipping batch...")
+            torch.cuda.empty_cache()
+            gc.collect()
+            continue
+        
         if opt.grad_clip:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01, norm_type=2)
         
-        optimizer.zero_grad()
-        loss.backward()
         optimizer.step()
         
         # Store loss value and update counters
@@ -317,8 +350,27 @@ if __name__ == '__main__':
         os.mkdir(opt.val_folder) 
         
     for epoch in range(start_epoch+1, opt.nEpochs + start_epoch + 1):
-        epoch_loss, pic_num = train(epoch)
+        try:
+            epoch_loss, pic_num = train(epoch)
+        except RuntimeError as e:
+            if "CUDA" in str(e) or "out of memory" in str(e):
+                print(f"\n{'='*60}")
+                print(f"CUDA/Memory error in epoch {epoch}: {e}")
+                print(f"Clearing CUDA cache and attempting to continue...")
+                print(f"{'='*60}\n")
+                torch.cuda.empty_cache()
+                gc.collect()
+                # Try to continue with next epoch
+                continue
+            else:
+                raise
+        
         scheduler.step()
+        
+        # Periodic memory cleanup
+        if epoch % 5 == 0:
+            torch.cuda.empty_cache()
+            gc.collect()
         
         if epoch % opt.snapshots == 0:
             model_out_path = checkpoint(epoch) 
