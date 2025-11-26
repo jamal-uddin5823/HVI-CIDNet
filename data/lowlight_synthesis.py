@@ -463,10 +463,10 @@ def apply_motion_blur(
 def synthesize_low_light_image(
     img: Union[np.ndarray, Image.Image, str],
     apply_light_reduction: bool = True,
-    apply_noise: bool = True,
-    apply_white_balance: bool = True,
-    apply_blur: bool = True,
-    reduction_factor: float = 0.1,
+    apply_noise: bool = False,  # DEFAULT CHANGED: Supervisor guidance - no information destruction
+    apply_white_balance: bool = False,  # DEFAULT CHANGED: Supervisor guidance - no color destruction
+    apply_blur: bool = False,  # DEFAULT CHANGED: Supervisor guidance - no spatial information loss
+    reduction_factor: float = 0.05,  # DEFAULT CHANGED: Lower for challenging scenarios (5% light)
     shot_noise_scale: float = 1.5,
     read_noise_std: float = 0.01,
     gain: float = 2.0,

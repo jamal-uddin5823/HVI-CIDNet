@@ -29,6 +29,7 @@ echo "=========================================="
 mkdir -p ./weights/baseline_d1.5_reference
 mkdir -p ./weights/discriminative_fr0.3_d1.5
 mkdir -p ./weights/discriminative_fr0.5_d1.5
+mkdir -p ./logs/discriminative
 
 # Model 1: Current best baseline (reference)
 echo ""
@@ -41,7 +42,7 @@ python train.py \
     --pretrained_model=./weights/LOLv2_real/best_PSNR.pth \
     --D_weight=1.5 \
     --nEpochs=50 \
-    --snapshots=5 > logs/baseline_d1.5_reference_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/discriminative/baseline_d1.5_reference_$(date +%Y%m%d_%H%M%S).log
 
 # Move weights to baseline folder
 echo "Saving baseline model weights..."
@@ -70,7 +71,7 @@ python train.py \
     --contrastive_weight=1.0 \
     --triplet_margin=0.2 \
     --triplet_weight=0.5 \
-    --snapshots=5 > logs/discriminative_fr0.3_d1.5_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/discriminative/discriminative_fr0.3_d1.5_$(date +%Y%m%d_%H%M%S).log
 
 # Move weights to FR 0.3 folder
 echo "Saving FR=0.3 model weights..."
@@ -99,7 +100,7 @@ python train.py \
     --contrastive_weight=1.0 \
     --triplet_margin=0.2 \
     --triplet_weight=0.5 \
-    --snapshots=5 > logs/discriminative_fr0.5_d1.5_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/discriminative/discriminative_fr0.5_d1.5_$(date +%Y%m%d_%H%M%S).log
 
 # Move weights to FR 0.5 folder
 echo "Saving FR=0.5 model weights..."

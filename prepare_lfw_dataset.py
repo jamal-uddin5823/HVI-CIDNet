@@ -353,17 +353,11 @@ def prepare_lfw_lowlight(
                 # Use --enable_blur flag for general low-light datasets
                 low_light_array = synthesize_low_light_image(
                     img_array,
-                    apply_light_reduction=True,
-                    apply_noise=True,
-                    apply_white_balance=True,
-                    apply_blur=enable_blur,  # Default: False (preserves identity)
-                    reduction_factor=reduction_factor,
-                    shot_noise_scale=shot_noise,
-                    read_noise_std=read_noise,
-                    gain=gain,
-                    wb_variation=wb_variation,
-                    blur_sigma=blur_sigma,
-                    blur_type='gaussian',
+                    apply_light_reduction=True,      # ✅ YES - This is the correct simulation
+                    apply_noise=False,                # ✅ NO - Your supervisor said no noise
+                    apply_white_balance=False,        # ✅ NO - This destroys color information
+                    apply_blur=False,                 # ✅ NO - This destroys spatial information
+                    reduction_factor=0.01,            # ✅ Go VERY low (0.01-0.1 for extreme darkness)
                     seed=seed + idx,
                     output_format='numpy'
                 )

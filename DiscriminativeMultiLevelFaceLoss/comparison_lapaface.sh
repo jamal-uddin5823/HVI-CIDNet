@@ -30,6 +30,7 @@ mkdir -p ./weights/lapaface_baseline_d1.5_reference
 mkdir -p ./weights/lapaface_discriminative_fr0.3_d1.5
 mkdir -p ./weights/lapaface_discriminative_fr0.5_d1.5
 mkdir -p logs
+mkdir -p logs/lapaface
 
 # Model 1: Current best baseline (reference)
 echo ""
@@ -44,7 +45,7 @@ python train.py \
     --D_weight=1.5 \
     --nEpochs=50 \
     --batchSize=8 \
-    --snapshots=5 > logs/lapaface_baseline_d1.5_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/lapaface/baseline_d1.5_$(date +%Y%m%d_%H%M%S).log
 
 # Move weights to baseline folder
 echo "Saving baseline model weights..."
@@ -75,7 +76,7 @@ python train.py \
     --contrastive_weight=1.0 \
     --triplet_margin=0.2 \
     --triplet_weight=0.5 \
-    --snapshots=5 > logs/lapaface_discriminative_fr0.3_d1.5_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/lapaface/discriminative_fr0.3_d1.5_$(date +%Y%m%d_%H%M%S).log
 
 # Move weights to FR 0.3 folder
 echo "Saving FR=0.3 model weights..."
@@ -106,7 +107,7 @@ python train.py \
     --contrastive_weight=1.0 \
     --triplet_margin=0.2 \
     --triplet_weight=0.5 \
-    --snapshots=5 > logs/lapaface_discriminative_fr0.5_d1.5_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/lapaface/discriminative_fr0.5_d1.5_$(date +%Y%m%d_%H%M%S).log
 
 # Move weights to FR 0.5 folder
 echo "Saving FR=0.5 model weights..."

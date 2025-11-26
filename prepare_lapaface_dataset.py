@@ -15,8 +15,8 @@ Dataset Download Links:
 - Test:  https://drive.google.com/file/d/1neJZq1C9HkXCO_eqdPRijiX4jvggF7mF/view?usp=sharing
 
 File Structure:
-    LaPa-Face-train.zip -> extracts to -> LaPa-Face/train/
-    LaPa-Face-test.zip  -> extracts to -> LaPa-Face/test/
+    train.zip -> extracts to -> LaPa-Face/train/
+    test.zip  -> extracts to -> LaPa-Face/test/
 
 Expected structure after extraction:
     datasets/LaPa-Face/
@@ -41,12 +41,23 @@ from pathlib import Path
 from collections import defaultdict
 
 
-def extract_zip(zip_path, extract_to):
+def extract_zip(zip_path, extract_to, is_train=True):
     """Extract a zip file to the specified directory"""
     print(f"Extracting {zip_path}...")
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_to)
+        if is_train:
+            extracted_dir = os.path.join(extract_to, "LaPa-Face")
+            target_dir = os.path.join(extract_to, "train")
+            if os.path.exists(extracted_dir) and not os.path.exists(target_dir):
+                os.rename(extracted_dir, target_dir)
+        else:
+            extracted_dir = os.path.join(extract_to, "LaPa-Test")
+            target_dir = os.path.join(extract_to, "test")
+            if os.path.exists(extracted_dir) and not os.path.exists(target_dir):
+                os.rename(extracted_dir, target_dir)
+
         print(f"  ✓ Extracted to {extract_to}")
         return True
     except Exception as e:
@@ -178,9 +189,9 @@ def main():
     parser.add_argument('--verify_only', action='store_true',
                         help='Only verify existing dataset without extraction')
     parser.add_argument('--train_zip', type=str, default=None,
-                        help='Path to LaPa-Face-train.zip (default: datasets/LaPa-Face-train.zip)')
+                        help='Path to train.zip (default: datasets/LaPa-Face/train.zip)')
     parser.add_argument('--test_zip', type=str, default=None,
-                        help='Path to LaPa-Face-test.zip (default: datasets/LaPa-Face-test.zip)')
+                        help='Path to test.zip (default: datasets/LaPa-Face/test.zip)')
 
     args = parser.parse_args()
 
@@ -194,8 +205,8 @@ def main():
     os.makedirs(args.data_dir, exist_ok=True)
 
     # Determine zip file paths (in the data_dir itself)
-    train_zip = args.train_zip or os.path.join(args.data_dir, 'LaPa-Face-train.zip')
-    test_zip = args.test_zip or os.path.join(args.data_dir, 'LaPa-Face-test.zip')
+    train_zip = args.train_zip or os.path.join(args.data_dir, 'train.zip')
+    test_zip = args.test_zip or os.path.join(args.data_dir, 'test.zip')
 
     # Step 1: Extract zip files (if not verify_only mode)
     if not args.verify_only:
@@ -209,7 +220,7 @@ def main():
 
         if os.path.exists(train_zip):
             print(f"Found train zip: {train_zip}")
-            if extract_zip(train_zip, args.data_dir):
+            if extract_zip(train_zip, args.data_dir, is_train=True):
                 extracted_any = True
         else:
             print(f"⚠ Train zip not found at: {train_zip}")
@@ -218,7 +229,7 @@ def main():
 
         if os.path.exists(test_zip):
             print(f"Found test zip: {test_zip}")
-            if extract_zip(test_zip, args.data_dir):
+            if extract_zip(test_zip, args.data_dir, is_train=False):
                 extracted_any = True
         else:
             print(f"⚠ Test zip not found at: {test_zip}")
