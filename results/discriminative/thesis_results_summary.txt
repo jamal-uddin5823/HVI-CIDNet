@@ -1,0 +1,82 @@
+====================================================================================================
+COMPREHENSIVE ABLATION STUDY RESULTS
+Face Recognition Perceptual Loss for Low-Light Face Enhancement
+====================================================================================================
+
+TABLE 1: FACE VERIFICATION PERFORMANCE
+------------------------------------------------------------------------------------------------------------------------
+Configuration             | Genuine Sim  | Impostor Sim | EER (%)    | TAR@0.1%(%)  | TAR@1%(%)   
+------------------------------------------------------------------------------------------------------------------------
+baseline_d1.5             |       0.9982 |       0.5728 |       0.00 |         0.00 |         0.00
+fr_weight_0.3_d1.5        |       0.9981 |       0.5961 |       0.00 |         0.00 |         0.00
+fr_weight_0.5_d1.5        |       0.9977 |       0.5252 |       0.00 |         0.00 |         0.00
+
+TABLE 2: IMAGE QUALITY METRICS
+----------------------------------------------------------------------
+Configuration             | PSNR (dB)       | SSIM           
+----------------------------------------------------------------------
+baseline_d1.5             |           37.12 |          0.9759
+fr_weight_0.3_d1.5        |           37.06 |          0.9754
+fr_weight_0.5_d1.5        |           37.01 |          0.9756
+
+TABLE 3: IMPROVEMENTS OVER BASELINE (per D_weight)
+------------------------------------------------------------------------------------------------------------------------
+Configuration             | Baseline             | ΔGenuine     | ΔImpostor    | ΔEER       | ΔTAR@1%     
+------------------------------------------------------------------------------------------------------------------------
+fr_weight_0.3_d1.5        | baseline_d1.5        |      -0.0001 |      +0.0233 |      +0.00 |        +0.00
+fr_weight_0.5_d1.5        | baseline_d1.5        |      -0.0005 |      -0.0476 |      +0.00 |        +0.00
+
+Note: Each FR configuration is compared to baseline with the same D_weight.
+      Δ indicates change from baseline. For EER, negative is better (lower error).
+      For all other metrics, positive is better.
+
+====================================================================================================
+STATISTICAL SIGNIFICANCE ANALYSIS (vs baseline with same D_weight)
+====================================================================================================
+
+
+fr_weight_0.3_d1.5 vs baseline_d1.5:
+------------------------------------------------------------
+  Genuine Similarity Improvement: -0.0001
+  t-statistic: -2.6261
+  p-value: 0.008768
+  Significant (p < 0.05): YES ✓
+
+  EER Improvement: +0.00%
+    Baseline EER: 0.00%
+    Model EER: 0.00%
+
+fr_weight_0.5_d1.5 vs baseline_d1.5:
+------------------------------------------------------------
+  Genuine Similarity Improvement: -0.0005
+  t-statistic: -12.3466
+  p-value: 0.000000
+  Significant (p < 0.05): YES ✓
+
+  EER Improvement: +0.00%
+    Baseline EER: 0.00%
+    Model EER: 0.00%
+
+====================================================================================================
+KEY FINDINGS
+====================================================================================================
+
+1. Best Baseline: baseline_d1.5
+   EER: 0.00%
+   TAR@FAR=1%: 0.00%
+
+2. Best Overall Configuration (Lowest EER): baseline_d1.5
+   EER: 0.00%
+   TAR@FAR=1%: 0.00%
+
+3. Best TAR@FAR=1%: baseline_d1.5
+   TAR: 0.00%
+   EER: 0.00%
+
+4. Best Genuine Similarity: baseline_d1.5
+   Similarity: 0.9982
+
+5. RECOMMENDED CONFIGURATION: baseline_d1.5
+   Reason: Best performance on both EER and TAR@FAR metrics
+
+====================================================================================================
