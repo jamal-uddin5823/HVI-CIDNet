@@ -16,6 +16,8 @@ from data.scheduler import *
 from tqdm import tqdm
 from datetime import datetime
 from loss.discriminative_face_loss import DiscriminativeMultiLevelFaceLoss
+from data.hard_negative_sampler import HardNegativeSampler
+from data.identity_balanced_sampler import IdentityBalancedSampler
 import gc
 
 opt = option().parse_args()
@@ -104,13 +106,25 @@ def train(epoch):
         if opt.use_face_loss and FR_loss is not None:
             # Sample impostor pairs for discriminative learning
             if batch_size > 1:
-                # Circular shift strategy for impostor pairs
-                impostor_gt = torch.roll(gt_rgb, shifts=1, dims=0)
-                
+                # NEW: Use hard negative mining if enabled
+                if opt.use_hard_negatives and hard_neg_sampler is not None:
+                    # Extract identities from filenames
+                    batch_identities = [hard_neg_sampler.extract_identity(f) for f in path2]
+
+                    # Sample hard impostors
+                    impostor_gt = hard_neg_sampler.sample_hard_impostors(
+                        batch_gt=gt_rgb,
+                        batch_identities=batch_identities,
+                        batch_features=None  # Will be extracted inside sampler
+                    )
+                else:
+                    # OLD: Circular shift strategy for impostor pairs
+                    impostor_gt = torch.roll(gt_rgb, shifts=1, dims=0)
+
                 # Compute discriminative multi-level face loss
                 face_loss_dict = FR_loss(output_rgb, gt_rgb, impostor_gt)
                 fr_loss_value = face_loss_dict['total']
-                
+
                 # Log face loss components every 100 iterations
                 if iter % 100 == 0:
                     print(f"\n  Face Loss Components (iter {iter}):")
@@ -118,12 +132,15 @@ def train(epoch):
                     print(f"    Contrastive:    {face_loss_dict['contrastive']:.4f}")
                     print(f"    Triplet:        {face_loss_dict['triplet']:.4f}")
                     print(f"    Total:          {fr_loss_value:.4f}")
+                    if opt.use_hard_negatives and hard_neg_sampler is not None:
+                        stats = hard_neg_sampler.get_statistics()
+                        print(f"    Hard Neg Memory: {stats['memory_size']} identities")
             else:
                 # Fallback for batch_size=1 (no impostor available)
                 fr_loss_value = FR_loss(output_rgb, gt_rgb, gt_rgb)['total']
                 if iter % 100 == 0:
                     print(f"\n  Warning: Batch size = 1, using paired loss only")
-            
+
             loss = loss_rgb + opt.HVI_weight * loss_hvi + opt.FR_weight * fr_loss_value
         else:
             loss = loss_rgb + opt.HVI_weight * loss_hvi
@@ -321,6 +338,7 @@ def init_loss():
 
     # Face Recognition Perceptual Loss (optional, for face-specific enhancement)
     FR_loss = None
+    hard_neg_sampler = None  # NEW
     if opt.use_face_loss:
         print("===> Initializing Discriminative Multi-Level Face Loss")
         FR_loss = DiscriminativeMultiLevelFaceLoss(
@@ -342,7 +360,22 @@ def init_loss():
         print(f"     Contrastive: margin={opt.contrastive_margin}, weight={opt.contrastive_weight}, temp={opt.face_temperature}")
         print(f"     Triplet: margin={opt.triplet_margin}, weight={opt.triplet_weight}")
 
-    return L1_loss, P_loss, E_loss, D_loss, FR_loss
+        # NEW: Initialize hard negative sampler
+        if opt.use_hard_negatives:
+            print("===> Initializing Hard Negative Sampler")
+            hard_neg_sampler = HardNegativeSampler(
+                face_recognizer=FR_loss.recognizer,
+                memory_size=opt.hard_neg_memory_size,
+                topk_hard=opt.hard_neg_topk,
+                sampling_strategy=opt.hard_neg_strategy,
+                update_frequency=1,
+                device='cuda'
+            )
+            print(f"     Memory size: {opt.hard_neg_memory_size}")
+            print(f"     Top-k: {opt.hard_neg_topk}")
+            print(f"     Strategy: {opt.hard_neg_strategy}")
+
+    return L1_loss, P_loss, E_loss, D_loss, FR_loss, hard_neg_sampler
 
 if __name__ == '__main__':  
     
@@ -353,7 +386,7 @@ if __name__ == '__main__':
     training_data_loader, testing_data_loader = load_datasets()
     model = build_model()
     optimizer,scheduler = make_scheduler()
-    L1_loss, P_loss, E_loss, D_loss, FR_loss = init_loss()
+    L1_loss, P_loss, E_loss, D_loss, FR_loss, hard_neg_sampler = init_loss()
     
     '''
     train

@@ -87,6 +87,23 @@ def option():
                         help='Weight for triplet loss component')
     parser.add_argument('--face_temperature', type=float, default=0.07,
                         help='Temperature for contrastive loss (lower = harder negatives)')
+
+    # Hard Negative Mining
+    parser.add_argument('--use_hard_negatives', action='store_true',
+                        help='Enable hard negative mining for impostor sampling')
+    parser.add_argument('--hard_neg_memory_size', type=int, default=1000,
+                        help='Memory size for hard negative sampler')
+    parser.add_argument('--hard_neg_topk', type=int, default=5,
+                        help='Top-k hard negatives to consider')
+    parser.add_argument('--hard_neg_strategy', type=str, default='mixed',
+                        choices=['hardest', 'semi-hard', 'mixed'],
+                        help='Hard negative sampling strategy')
+
+    # Identity-Balanced Sampling
+    parser.add_argument('--use_identity_balanced', action='store_true',
+                        help='Enable identity-balanced batch sampling')
+    parser.add_argument('--images_per_identity', type=int, default=2,
+                        help='Number of images per identity in each batch')
     
     # use random gamma function (enhancement curve) to improve generalization
     parser.add_argument('--gamma', type=bool, default=False)

@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Evaluation Script for Discriminative Multi-Level Face Loss
+# Evaluation Script for Discriminative Multi-Level Face Loss + NEW Improvements
 # This script evaluates trained models and generates comprehensive comparison results
 
 set -e  # Exit on any error
 set -o pipefail
 
 echo "================================================================================"
-echo "DISCRIMINATIVE MULTI-LEVEL FACE LOSS - MODEL EVALUATION"
+echo "DISCRIMINATIVE MULTI-LEVEL FACE LOSS - MODEL EVALUATION (WITH NEW IMPROVEMENTS)"
 echo "================================================================================"
 echo ""
 
@@ -51,47 +51,43 @@ fi
 echo "✓ All prerequisites found" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-# Define models array for later use in summary
-MODELS=(
-    "baseline_d1.5_reference"
-    "discriminative_fr0.3_d1.5"
-    "discriminative_fr0.5_d1.5"
-)
-
 # ============================================================================
-# STEP 1: Evaluate Individual Models
+# STEP 1: Evaluate Individual Models (INCLUDING NEW MODELS)
 # ============================================================================
 echo "================================================================================" | tee -a "$LOG_FILE"
 echo "STEP 1: Evaluating Individual Models" | tee -a "$LOG_FILE"
 echo "================================================================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-# Models to evaluate
+# Models to evaluate (NOW WITH 6 MODELS)
 MODELS=(
     "baseline_d1.5_reference"
     "discriminative_fr0.3_d1.5"
     "discriminative_fr0.5_d1.5"
+    "discriminative_fr0.5_hardneg"
+    "discriminative_fr0.5_identitybal"
+    "discriminative_fr0.5_hardneg_identitybal"
 )
 
 # Evaluate each model
 for model in "${MODELS[@]}"; do
     MODEL_PATH="./weights/${model}/epoch_50.pth"
     OUTPUT_DIR="${RESULTS_BASE}/${model}"
-    
+
     echo "------------------------------------------------------------------------" | tee -a "$LOG_FILE"
     echo "Evaluating: ${model}" | tee -a "$LOG_FILE"
     echo "------------------------------------------------------------------------" | tee -a "$LOG_FILE"
     echo "  Model: ${MODEL_PATH}" | tee -a "$LOG_FILE"
     echo "  Output: ${OUTPUT_DIR}" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
-    
+
     # Check if model exists
     if [ ! -f "$MODEL_PATH" ]; then
         echo "⚠ Warning: Model not found, skipping: $MODEL_PATH" | tee -a "$LOG_FILE"
         echo "" | tee -a "$LOG_FILE"
         continue
     fi
-    
+
     # Run evaluation
     python eval_face_verification.py \
         --model="${MODEL_PATH}" \
@@ -99,13 +95,13 @@ for model in "${MODELS[@]}"; do
         --pairs_file="${PAIRS_FILE}" \
         --face_weights="${FACE_WEIGHTS}" \
         --output_dir="${OUTPUT_DIR}" 2>&1 | tee -a "$LOG_FILE"
-    
+
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo "" | tee -a "$LOG_FILE"
         echo "✗ Evaluation failed for ${model}" | tee -a "$LOG_FILE"
         exit 1
     fi
-    
+
     echo "" | tee -a "$LOG_FILE"
     echo "✓ Completed: ${model}" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
@@ -143,6 +139,19 @@ if [ -f "generate_thesis_results.py" ]; then
         ln -sf "$(cd "${RESULTS_BASE}/discriminative_fr0.5_d1.5" && pwd)" "${RESULTS_BASE}/temp_links/fr_weight_0.5_d1.5"
     fi
 
+    # Link NEW discriminative models with improvements
+    if [ -d "${RESULTS_BASE}/discriminative_fr0.5_hardneg" ]; then
+        ln -sf "$(cd "${RESULTS_BASE}/discriminative_fr0.5_hardneg" && pwd)" "${RESULTS_BASE}/temp_links/fr_weight_0.5_hardneg"
+    fi
+
+    if [ -d "${RESULTS_BASE}/discriminative_fr0.5_identitybal" ]; then
+        ln -sf "$(cd "${RESULTS_BASE}/discriminative_fr0.5_identitybal" && pwd)" "${RESULTS_BASE}/temp_links/fr_weight_0.5_identitybal"
+    fi
+
+    if [ -d "${RESULTS_BASE}/discriminative_fr0.5_hardneg_identitybal" ]; then
+        ln -sf "$(cd "${RESULTS_BASE}/discriminative_fr0.5_hardneg_identitybal" && pwd)" "${RESULTS_BASE}/temp_links/fr_weight_0.5_hardneg_identitybal"
+    fi
+
     # Run the script on the temp_links directory
     python generate_thesis_results.py \
         --results_dir="${RESULTS_BASE}/temp_links" \
@@ -150,13 +159,13 @@ if [ -f "generate_thesis_results.py" ]; then
 
     # Clean up symbolic links
     rm -rf "${RESULTS_BASE}/temp_links"
-    
+
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo "" | tee -a "$LOG_FILE"
         echo "✗ Thesis results generation failed" | tee -a "$LOG_FILE"
         exit 1
     fi
-    
+
     echo "" | tee -a "$LOG_FILE"
     echo "✓ Thesis results generated" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
@@ -166,10 +175,10 @@ else
 fi
 
 # ============================================================================
-# STEP 3: Extended Analysis (Optional)
+# STEP 3: Extended Analysis (Optional) - Analyze NEW improvements
 # ============================================================================
 echo "================================================================================" | tee -a "$LOG_FILE"
-echo "STEP 3: Extended Analysis (Optional)" | tee -a "$LOG_FILE"
+echo "STEP 3: Extended Analysis (WITH NEW IMPROVEMENTS)" | tee -a "$LOG_FILE"
 echo "================================================================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
@@ -177,38 +186,90 @@ if [ ! -f "extended_analysis.py" ]; then
     echo "⚠ Skipping extended analysis (extended_analysis.py not found)" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 else
-    # Run extended analysis comparing baseline vs best FR model
+    # Run extended analysis comparing baseline vs all FR models
     BASELINE_MODEL="./weights/baseline_d1.5_reference/epoch_50.pth"
-    FR_MODEL="./weights/discriminative_fr0.5_d1.5/epoch_50.pth"  # Best performing FR model
-    
-    if [ -f "$BASELINE_MODEL" ] && [ -f "$FR_MODEL" ]; then
-        echo "Running extended analysis: Baseline vs FR=0.5" | tee -a "$LOG_FILE"
-        echo "" | tee -a "$LOG_FILE"
-        
-        OUTPUT_DIR="${RESULTS_BASE}/extended_analysis"
-        mkdir -p "$OUTPUT_DIR"
-        
-        python extended_analysis.py \
-            --baseline_model "$BASELINE_MODEL" \
-            --fr_model "$FR_MODEL" \
-            --test_dir "${DATASET_DIR}" \
-            --pairs_file "${PAIRS_FILE}" \
-            --face_weights "${FACE_WEIGHTS}" \
-            --output_dir "$OUTPUT_DIR" \
-            --analyses significance identity failures 2>&1 | tee -a "$LOG_FILE"
-        
-        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+
+    if [ -f "$BASELINE_MODEL" ]; then
+        # Analyze each discriminative variant
+        FR_MODELS=(
+            "discriminative_fr0.5_d1.5:FR=0.5 (circular)"
+            "discriminative_fr0.5_hardneg:FR=0.5 (hard negatives)"
+            "discriminative_fr0.5_hardneg_identitybal:FR=0.5 (hard neg + identity bal)"
+        )
+
+        for model_info in "${FR_MODELS[@]}"; do
+            IFS=":" read -r model_name model_desc <<< "$model_info"
+            FR_MODEL="./weights/${model_name}/epoch_50.pth"
+
+            if [ ! -f "$FR_MODEL" ]; then
+                echo "⚠ Skipping $model_desc (model not found)" | tee -a "$LOG_FILE"
+                continue
+            fi
+
+            echo "Running extended analysis: Baseline vs $model_desc" | tee -a "$LOG_FILE"
             echo "" | tee -a "$LOG_FILE"
-            echo "⚠ Extended analysis failed (non-critical)" | tee -a "$LOG_FILE"
-        else
+
+            OUTPUT_DIR="${RESULTS_BASE}/extended_analysis_${model_name}"
+            mkdir -p "$OUTPUT_DIR"
+
+            python extended_analysis.py \
+                --baseline_model "$BASELINE_MODEL" \
+                --fr_model "$FR_MODEL" \
+                --test_dir "${DATASET_DIR}" \
+                --pairs_file "${PAIRS_FILE}" \
+                --face_weights "${FACE_WEIGHTS}" \
+                --output_dir "$OUTPUT_DIR" \
+                --analyses significance identity failures 2>&1 | tee -a "$LOG_FILE"
+
+            if [ ${PIPESTATUS[0]} -ne 0 ]; then
+                echo "" | tee -a "$LOG_FILE"
+                echo "⚠ Extended analysis failed for $model_desc (non-critical)" | tee -a "$LOG_FILE"
+            else
+                echo "" | tee -a "$LOG_FILE"
+                echo "✓ Extended analysis completed for $model_desc" | tee -a "$LOG_FILE"
+            fi
             echo "" | tee -a "$LOG_FILE"
-            echo "✓ Extended analysis completed" | tee -a "$LOG_FILE"
-        fi
-        echo "" | tee -a "$LOG_FILE"
+        done
     else
-        echo "⚠ Skipping extended analysis (baseline or FR model not found)" | tee -a "$LOG_FILE"
+        echo "⚠ Skipping extended analysis (baseline model not found)" | tee -a "$LOG_FILE"
         echo "" | tee -a "$LOG_FILE"
     fi
+fi
+
+# ============================================================================
+# STEP 4: Discriminative Effect Analysis (NEW)
+# ============================================================================
+echo "================================================================================" | tee -a "$LOG_FILE"
+echo "STEP 4: Discriminative Effect Analysis (NEW)" | tee -a "$LOG_FILE"
+echo "================================================================================" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+
+if [ -f "analyze_discriminative_effect.py" ] && [ -f "$BASELINE_MODEL" ]; then
+    echo "Analyzing what discriminative loss learns..." | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+
+    # Analyze best model (hard neg + identity bal)
+    BEST_MODEL="./weights/discriminative_fr0.5_hardneg_identitybal/epoch_50.pth"
+
+    if [ -f "$BEST_MODEL" ]; then
+        python analyze_discriminative_effect.py \
+            --baseline_model "$BASELINE_MODEL" \
+            --discrim_model "$BEST_MODEL" \
+            --test_dir "$DATASET_DIR" \
+            --pairs_file "$PAIRS_FILE" \
+            --face_model_path "$FACE_WEIGHTS" \
+            --output_dir "${RESULTS_BASE}/discriminative_effect_analysis" 2>&1 | tee -a "$LOG_FILE"
+
+        echo "" | tee -a "$LOG_FILE"
+        echo "✓ Discriminative effect analysis completed" | tee -a "$LOG_FILE"
+        echo "" | tee -a "$LOG_FILE"
+    else
+        echo "⚠ Best model not found, skipping discriminative effect analysis" | tee -a "$LOG_FILE"
+        echo "" | tee -a "$LOG_FILE"
+    fi
+else
+    echo "⚠ Skipping discriminative effect analysis (script or baseline not found)" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
 fi
 
 # ============================================================================
@@ -227,7 +288,7 @@ echo "----------------" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 # List individual model results
-echo "1. Individual model evaluations:" | tee -a "$LOG_FILE"
+echo "1. Individual model evaluations (6 models):" | tee -a "$LOG_FILE"
 for model in "${MODELS[@]}"; do
     RESULT_FILE="${RESULTS_BASE}/${model}/face_verification_results.txt"
     if [ -f "$RESULT_FILE" ]; then
@@ -260,11 +321,20 @@ echo "" | tee -a "$LOG_FILE"
 # List extended analysis files
 if [ -d "${RESULTS_BASE}/extended_analysis" ]; then
     echo "4. Extended analysis:" | tee -a "$LOG_FILE"
-    for file in "${RESULTS_BASE}/extended_analysis/"*.{txt,csv,png}; do
-        if [ -f "$file" ]; then
-            echo "   • ${file}" | tee -a "$LOG_FILE"
+    for file in "${RESULTS_BASE}/extended_analysis"*; do
+        if [ -d "$file" ]; then
+            echo "   • ${file}/" | tee -a "$LOG_FILE"
         fi
     done
+    echo "" | tee -a "$LOG_FILE"
+fi
+
+# List discriminative effect analysis
+if [ -d "${RESULTS_BASE}/discriminative_effect_analysis" ]; then
+    echo "5. Discriminative effect analysis (NEW):" | tee -a "$LOG_FILE"
+    echo "   • ${RESULTS_BASE}/discriminative_effect_analysis/per_pair_analysis.csv" | tee -a "$LOG_FILE"
+    echo "   • ${RESULTS_BASE}/discriminative_effect_analysis/identity_characteristics.csv" | tee -a "$LOG_FILE"
+    echo "   • ${RESULTS_BASE}/discriminative_effect_analysis/improvement_patterns.txt" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 fi
 
@@ -289,14 +359,17 @@ echo "" | tee -a "$LOG_FILE"
 echo "1. Review the comparison table:" | tee -a "$LOG_FILE"
 echo "   cat ${RESULTS_BASE}/thesis_results_summary.txt" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
-echo "2. Check which FR weight performs best (0.3, 0.5, or 1.0)" | tee -a "$LOG_FILE"
+echo "2. Compare NEW improvements (hard negatives, identity-balanced)" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
-echo "3. Verify statistical significance (if p-values are available)" | tee -a "$LOG_FILE"
+echo "3. Check discriminative effect analysis to understand improvements:" | tee -a "$LOG_FILE"
+echo "   cat ${RESULTS_BASE}/discriminative_effect_analysis/improvement_patterns.txt" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
-echo "4. Include the generated plots in your thesis" | tee -a "$LOG_FILE"
+echo "4. Verify statistical significance (if p-values are available)" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "5. Include the generated plots in your thesis" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 echo "================================================================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-echo "✓ Evaluation complete! 🎓" | tee -a "$LOG_FILE"
+echo "✓ Evaluation complete with NEW improvements! 🎓" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
