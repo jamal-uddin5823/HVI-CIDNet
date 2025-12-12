@@ -32,6 +32,7 @@ def option():
     parser.add_argument('--data_train_fivek'        , type=str, default='./datasets/FiveK/train')
     parser.add_argument('--data_train_lfw'          , type=str, default='./datasets/LFW_lowlight/train')
     parser.add_argument('--data_train_lapaface'     , type=str, default='./datasets/LaPa-Face/train')
+    parser.add_argument('--data_train_ssface'       , type=str, default='./datasets/SS_Face_lowlight/train')
 
     # validation input
     parser.add_argument('--data_val_lol_blur'       , type=str, default='./datasets/LOL_blur/eval/low_blur')
@@ -44,6 +45,7 @@ def option():
     parser.add_argument('--data_test_fivek'         , type=str, default='./datasets/FiveK/test/input')
     parser.add_argument('--data_val_lfw'            , type=str, default='./datasets/LFW_lowlight/val/low')
     parser.add_argument('--data_val_lapaface'       , type=str, default='./datasets/LaPa-Face/test')
+    parser.add_argument('--data_val_ssface'         , type=str, default='./datasets/SS_Face_lowlight/val/low')
 
     # validation groundtruth
     parser.add_argument('--data_valgt_lol_blur'     , type=str, default='./datasets/LOL_blur/eval/high_sharp_scaled/')
@@ -56,6 +58,7 @@ def option():
     parser.add_argument('--data_valgt_fivek'        , type=str, default='./datasets/FiveK/test/target/')
     parser.add_argument('--data_valgt_lfw'          , type=str, default='./datasets/LFW_lowlight/val/high')
     parser.add_argument('--data_valgt_lapaface'     , type=str, default='./datasets/LaPa-Face/test/normal/')
+    parser.add_argument('--data_valgt_ssface'       , type=str, default='./datasets/SS_Face_lowlight/val/high')
 
     parser.add_argument('--val_folder', default='./results/', help='Location to save validation datasets')
 
@@ -126,4 +129,5 @@ def option():
     parser.add_argument('--fivek', action='store_true', help='Train on FiveK dataset')
     parser.add_argument('--lfw', action='store_true', help='Train on LFW with synthetic low-light (for face recognition loss)')
     parser.add_argument('--lapaface', action='store_true', help='Train on LaPa-Face with underexposed images (for face recognition loss)')
+    parser.add_argument('--ssface', action='store_true', help='Train on SS_Face with synthetic low-light (face identities)')
     return parser

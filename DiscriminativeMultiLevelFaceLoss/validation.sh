@@ -18,6 +18,8 @@ echo "Hard Negative Mining: ENABLED"
 echo "Identity-Balanced Sampling: ENABLED"
 echo "=========================================="
 
+mkdir -p logs/discriminative
+
 # Train for 10 epochs on small subset to validate ALL new features
 python train.py \
     --lfw \
@@ -40,7 +42,7 @@ python train.py \
     --hard_neg_strategy=mixed \
     --use_identity_balanced \
     --images_per_identity=2 \
-    --snapshots=5 > logs/validation_discriminative_with_improvements_$(date +%Y%m%d_%H%M%S).log
+    --snapshots=5 > logs/discriminative/validation_discriminative_with_improvements_$(date +%Y%m%d_%H%M%S).log
 
 echo ""
 echo "=========================================="

@@ -181,22 +181,29 @@ def compute_face_similarity(feat1, feat2):
     return similarity
 
 
-def enhance_image(model, img_tensor, device='cuda', target_size=None):
+def enhance_image(model, img_tensor, device='cuda', target_size=None, no_enhance=False):
     """Enhance a low-light image using CIDNet
 
     Args:
-        model: CIDNet model
+        model: CIDNet model (can be None if no_enhance=True)
         img_tensor: Input image tensor (1, 3, H, W)
         device: Device
         target_size: Optional (H, W) to resize output to match
+        no_enhance: If True, skip enhancement and return input (for baseline comparison)
 
     Returns:
-        Enhanced image tensor (1, 3, H, W)
+        Enhanced image tensor (1, 3, H, W) or original if no_enhance=True
     """
     with torch.no_grad():
         img_tensor = img_tensor.to(device)
-        enhanced = model(img_tensor)
-        enhanced = torch.clamp(enhanced, 0, 1)
+        
+        if no_enhance:
+            # Skip enhancement, use original low-light image
+            enhanced = img_tensor
+        else:
+            # Apply enhancement
+            enhanced = model(img_tensor)
+            enhanced = torch.clamp(enhanced, 0, 1)
 
         # Resize to target size if specified (to match GT dimensions)
         if target_size is not None and enhanced.shape[2:] != target_size:
@@ -240,7 +247,8 @@ def evaluate_face_verification_with_pairs(
     device='cuda',
     max_pairs=None,
     save_results=True,
-    output_dir='./results/face_verification'
+    output_dir='./results/face_verification',
+    no_enhance=False
 ):
     """
     Evaluate face verification accuracy using pairs.txt protocol
@@ -249,7 +257,7 @@ def evaluate_face_verification_with_pairs(
     and computes standard verification metrics like TAR@FAR, EER, etc.
 
     Args:
-        enhancement_model: CIDNet model
+        enhancement_model: CIDNet model (can be None if no_enhance=True)
         face_model: Face recognition model
         test_dir: Directory with low/high subdirectories
         pairs_file: Path to pairs.txt file
@@ -257,6 +265,7 @@ def evaluate_face_verification_with_pairs(
         max_pairs: Maximum number of pairs to evaluate (None = all)
         save_results: Save detailed results to file
         output_dir: Output directory for results
+        no_enhance: If True, skip enhancement and run recognition on low-light images
 
     Returns:
         dict: Evaluation metrics
@@ -355,7 +364,7 @@ def evaluate_face_verification_with_pairs(
             high_tensor = F.interpolate(high_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
 
             # Enhance (resize to match GT dimensions)
-            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:], no_enhance=no_enhance)
 
             # Compute PSNR/SSIM (only for genuine pairs where they match)
             if low_name == high_name:
@@ -419,7 +428,7 @@ def evaluate_face_verification_with_pairs(
             high_tensor = F.interpolate(high_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
 
             # Enhance (resize to match GT dimensions)
-            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:], no_enhance=no_enhance)
 
             # Preprocess for face recognition
             low_face = preprocess_for_face_recognizer(low_tensor)
@@ -615,14 +624,15 @@ def evaluate_face_verification(
     max_pairs=None,
     threshold=0.5,
     save_results=True,
-    output_dir='./results/face_verification'
+    output_dir='./results/face_verification',
+    no_enhance=False
 ):
     """
     Legacy evaluation: Evaluate face verification accuracy on enhanced images
     (Only uses same-person pairs - not proper verification)
 
     Args:
-        enhancement_model: CIDNet model
+        enhancement_model: CIDNet model (can be None if no_enhance=True)
         face_model: Face recognition model
         test_dir: Directory with low/high subdirectories
         device: Device to use
@@ -630,6 +640,7 @@ def evaluate_face_verification(
         threshold: Similarity threshold for verification
         save_results: Save detailed results to file
         output_dir: Output directory for results
+        no_enhance: If True, skip enhancement and run recognition on low-light images
 
     Returns:
         dict: Evaluation metrics
@@ -719,7 +730,7 @@ def evaluate_face_verification(
             high_tensor = F.interpolate(high_tensor, size=(target_h, target_w), mode='bilinear', align_corners=False)
 
             # Enhance low-light image (resize to match GT dimensions)
-            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:])
+            enhanced_tensor = enhance_image(enhancement_model, low_tensor, device, target_size=high_tensor.shape[2:], no_enhance=no_enhance)
 
             # Debug: Verify all sizes match
             if idx == 0:
@@ -868,6 +879,8 @@ def main():
     parser.add_argument('--device', type=str, default='cuda',
                        choices=['cuda', 'cpu'],
                        help='Device to use')
+    parser.add_argument('--no-enhance', action='store_true',
+                       help='Skip enhancement and run face recognition directly on low-light images')
 
     args = parser.parse_args()
 
@@ -877,7 +890,12 @@ def main():
         args.device = 'cpu'
 
     # Load models
-    enhancement_model = load_enhancement_model(args.model, args.device)
+    if args.no_enhance:
+        print("\n[NO-ENHANCE MODE: Running face recognition directly on low-light images]")
+        enhancement_model = None
+    else:
+        enhancement_model = load_enhancement_model(args.model, args.device)
+    
     face_model = load_face_recognition_model(
         args.face_model,
         args.face_weights,
@@ -896,7 +914,8 @@ def main():
             device=args.device,
             max_pairs=args.max_pairs,
             save_results=True,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            no_enhance=args.no_enhance
         )
     else:
         print("\n[Using legacy evaluation mode]")
@@ -911,7 +930,8 @@ def main():
             max_pairs=args.max_pairs,
             threshold=args.threshold,
             save_results=True,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            no_enhance=args.no_enhance
         )
 
     print("\n" + "="*70)

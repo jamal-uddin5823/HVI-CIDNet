@@ -29,12 +29,12 @@ echo "CUDA_LAUNCH_BLOCKING: enabled"
 echo "=========================================="
 
 # Create directories for storing models
-mkdir -p ./weights/baseline_d1.5_reference
-mkdir -p ./weights/discriminative_fr0.3_d1.5
-mkdir -p ./weights/discriminative_fr0.5_d1.5
-mkdir -p ./weights/discriminative_fr0.5_hardneg
-mkdir -p ./weights/discriminative_fr0.5_identitybal
-mkdir -p ./weights/discriminative_fr0.5_hardneg_identitybal
+mkdir -p ./weights/disciminative/baseline_d1.5_reference
+mkdir -p ./weights/disciminative/discriminative_fr0.3_d1.5
+mkdir -p ./weights/disciminative/discriminative_fr0.5_d1.5
+mkdir -p ./weights/disciminative/discriminative_fr0.5_hardneg
+mkdir -p ./weights/disciminative/discriminative_fr0.5_identitybal
+mkdir -p ./weights/disciminative/discriminative_fr0.5_hardneg_identitybal
 mkdir -p ./logs/discriminative
 
 # Model 1: Current best baseline (reference)
@@ -52,7 +52,7 @@ python train.py \
 
 # Move weights to baseline folder
 echo "Saving baseline model weights..."
-cp -r ./weights/train/* ./weights/baseline_d1.5_reference/
+cp -r ./weights/train/* ./weights/disciminative/baseline_d1.5_reference/
 echo "Model 1 complete!"
 echo "=========================================="
 
@@ -81,7 +81,7 @@ python train.py \
 
 # Move weights to FR 0.3 folder
 echo "Saving FR=0.3 model weights..."
-cp -r ./weights/train/* ./weights/discriminative_fr0.3_d1.5/
+cp -r ./weights/train/* ./weights/disciminative/discriminative_fr0.3_d1.5/
 echo "Model 2 complete!"
 echo "=========================================="
 
@@ -110,7 +110,7 @@ python train.py \
 
 # Move weights to FR 0.5 folder
 echo "Saving FR=0.5 model weights..."
-cp -r ./weights/train/* ./weights/discriminative_fr0.5_d1.5/
+cp -r ./weights/train/* ./weights/disciminative/discriminative_fr0.5_d1.5/
 echo "Model 3 complete!"
 echo "=========================================="
 
@@ -143,7 +143,7 @@ python train.py \
 
 # Move weights
 echo "Saving FR=0.5 + Hard Negatives model weights..."
-cp -r ./weights/train/* ./weights/discriminative_fr0.5_hardneg/
+cp -r ./weights/train/* ./weights/disciminative/discriminative_fr0.5_hardneg/
 echo "Model 4 complete!"
 echo "=========================================="
 
@@ -174,7 +174,7 @@ python train.py \
 
 # Move weights
 echo "Saving FR=0.5 + Identity-Balanced model weights..."
-cp -r ./weights/train/* ./weights/discriminative_fr0.5_identitybal/
+cp -r ./weights/train/* ./weights/disciminative/discriminative_fr0.5_identitybal/
 echo "Model 5 complete!"
 echo "=========================================="
 
@@ -209,17 +209,17 @@ python train.py \
 
 # Move weights
 echo "Saving FR=0.5 + Hard Negatives + Identity-Balanced model weights..."
-cp -r ./weights/train/* ./weights/discriminative_fr0.5_hardneg_identitybal/
+cp -r ./weights/train/* ./weights/disciminative/discriminative_fr0.5_hardneg_identitybal/
 echo "Model 6 complete!"
 echo "=========================================="
 
 echo ""
 echo "All 6 models trained successfully!"
 echo "Check the following directories for results:"
-echo "  1. ./weights/baseline_d1.5_reference"
-echo "  2. ./weights/discriminative_fr0.3_d1.5"
-echo "  3. ./weights/discriminative_fr0.5_d1.5"
-echo "  4. ./weights/discriminative_fr0.5_hardneg (NEW)"
-echo "  5. ./weights/discriminative_fr0.5_identitybal (NEW)"
-echo "  6. ./weights/discriminative_fr0.5_hardneg_identitybal (BEST) (NEW)"
+echo "  1. ./weights/disciminative/baseline_d1.5_reference"
+echo "  2. ./weights/disciminative/discriminative_fr0.3_d1.5"
+echo "  3. ./weights/disciminative/discriminative_fr0.5_d1.5"
+echo "  4. ./weights/disciminative/discriminative_fr0.5_hardneg (NEW)"
+echo "  5. ./weights/disciminative/discriminative_fr0.5_identitybal (NEW)"
+echo "  6. ./weights/disciminative/discriminative_fr0.5_hardneg_identitybal (BEST) (NEW)"
 echo "=========================================="

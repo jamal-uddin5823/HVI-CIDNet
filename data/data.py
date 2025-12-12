@@ -5,6 +5,7 @@ from data.SICE_blur_SID import *
 from data.fivek import *
 from data.lfw_dataset import *
 from data.lapaface_dataset import *
+from data.ss_face_dataset import *
 
 def transform1(size=256):
     return Compose([
@@ -89,5 +90,19 @@ def get_lapaface_eval_set(data_dir):
     # For eval, resize to standard size without random crop
     return LaPaFaceDatasetFromFolderEval(data_dir, transform=Compose([
         Resize((256, 256)),  # Resize to standard size for evaluation
+        ToTensor()
+    ]))
+
+
+# SS_Face dataset (same transform as LFW by default)
+def transform_ssface(size=256):
+    return transform_lfw(size)
+
+def get_ssface_training_set(data_dir, size):
+    return SSFaceDatasetFromFolder(data_dir, transform=transform_ssface(size))
+
+def get_ssface_eval_set(data_dir):
+    return SSFaceDatasetFromFolderEval(data_dir, transform=Compose([
+        Resize((256, 256)),
         ToTensor()
     ]))
