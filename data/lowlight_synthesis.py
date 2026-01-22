@@ -475,71 +475,14 @@ def synthesize_low_light_image(
     blur_type: str = 'gaussian',
     motion_blur_angle: float = 0.0,
     output_format: str = 'numpy',
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    raw_sensor_mode: bool = False  # <--- NEW PARAMETER
 ) -> Union[np.ndarray, Image.Image]:
     """
-    Physically accurate low-light image synthesis with 4 core transformations.
-
-    The transformations are applied in the physically correct order:
-    1. Blur (optional) - Scene/optical effect before sensor
-    2. to_linear - Convert sRGB to linear space
-    3. Reduce Light - Exposure control
-    4. White Balance - Analog channel gains (in linear space)
-    5. Noise - Sensor noise (Poisson + Gaussian)
-    6. to_srgb - ISP gamma correction
-
-    Args:
-        img: Input image (numpy array, PIL Image, or file path)
-        apply_light_reduction: Apply light reduction (default: True)
-        apply_noise: Apply Poisson-Gaussian noise (default: True)
-        apply_white_balance: Apply white balance failure (default: True)
-        apply_blur: Apply blur (default: True)
-        reduction_factor: Light reduction factor, range (0, 1] (default: 0.1)
-        shot_noise_scale: Shot noise scale (default: 1.5)
-        read_noise_std: Read noise std deviation (default: 0.01)
-        gain: Sensor gain/ISO (default: 2.0)
-        wb_variation: White balance variation range (default: 0.2)
-        blur_sigma: Blur sigma (default: 0.5)
-        blur_type: 'gaussian' or 'motion' (default: 'gaussian')
-        motion_blur_angle: Angle for motion blur in degrees (default: 0.0)
-        output_format: 'numpy' or 'pil' (default: 'numpy')
-        seed: Random seed for reproducibility
-
-    Returns:
-        Synthesized low-light image
-
-    Example:
-        >>> # All transformations
-        >>> low_light = synthesize_low_light_image('image.jpg')
-
-        >>> # Only light reduction
-        >>> low_light = synthesize_low_light_image(
-        ...     img,
-        ...     apply_noise=False,
-        ...     apply_white_balance=False,
-        ...     apply_blur=False,
-        ...     reduction_factor=0.05
-        ... )
-
-        >>> # Only noise
-        >>> low_light = synthesize_low_light_image(
-        ...     img,
-        ...     apply_light_reduction=False,
-        ...     apply_white_balance=False,
-        ...     apply_blur=False
-        ... )
-
-        >>> # Custom combination
-        >>> low_light = synthesize_low_light_image(
-        ...     img,
-        ...     apply_light_reduction=True,
-        ...     apply_noise=True,
-        ...     apply_white_balance=False,
-        ...     apply_blur=True,
-        ...     reduction_factor=0.1,
-        ...     blur_type='motion',
-        ...     motion_blur_angle=45
-        ... )
+    Physically accurate low-light image synthesis.
+    
+    Update: Added `raw_sensor_mode` to bypass ISP Gamma correction, allowing 
+    for true linear light reduction without artificial brightening.
     """
     # Load and normalize input image
     if isinstance(img, str):
@@ -561,19 +504,26 @@ def synthesize_low_light_image(
 
     # --- PHYSICALLY ACCURATE ORDER ---
 
-    # Step 1: Blur (optional) - happens before sensor
+    # Step 1: Blur (optional)
     if apply_blur:
         if blur_type == 'motion':
+            # Assuming apply_motion_blur is defined elsewhere
             img_array = apply_motion_blur(
                 img_array,
-                kernel_size=int(blur_sigma * 6 + 1),  # Convert sigma to kernel size
+                kernel_size=int(blur_sigma * 6 + 1),
                 angle=motion_blur_angle
             )
-        else:  # gaussian
+        else:
+            # Assuming apply_low_light_blur is defined elsewhere
             img_array = apply_low_light_blur(img_array, sigma=blur_sigma)
 
-    # Step 2: Convert to linear space
-    img_linear = srgb_to_linear(img_array)
+    # Step 2: Convert to linear space (skipped in Raw Mode)
+    if raw_sensor_mode:
+        # Treat input as already linear (Raw sensor data)
+        img_linear = img_array
+    else:
+        # Standard ISP pipeline: Remove sRGB gamma to get linear light
+        img_linear = srgb_to_linear(img_array)
 
     # Step 3: Reduce light (exposure control)
     if apply_light_reduction:
@@ -597,8 +547,14 @@ def synthesize_low_light_image(
             seed=seed
         )
 
-    # Step 6: Convert back to sRGB
-    img_srgb = linear_to_srgb(img_linear)
+    # Step 6: Convert back to sRGB (skipped in Raw Mode)
+    if raw_sensor_mode:
+        # Return raw linear data. Do NOT apply Gamma correction.
+        # This keeps dark values mathematically dark (e.g., 0.01 stays 0.01)
+        img_srgb = img_linear
+    else:
+        # Apply standard ISP gamma correction (brightens dark areas)
+        img_srgb = linear_to_srgb(img_linear)
 
     # Final clip
     img_srgb = np.clip(img_srgb, 0, 1)

@@ -353,16 +353,19 @@ def prepare_lfw_lowlight(
                 # Use --enable_blur flag for general low-light datasets
                 low_light_array = synthesize_low_light_image(
                     img_array,
-                    apply_light_reduction=True,      # ✅ YES - This is the correct simulation
-                    apply_noise=False,                # ✅ NO - Your supervisor said no noise
-                    apply_white_balance=False,        # ✅ NO - This destroys color information
-                    apply_blur=False,                 # ✅ NO - This destroys spatial information
-                    reduction_factor=0.01,            # ✅ Go VERY low (0.01-0.1 for extreme darkness)
+                    apply_light_reduction=True,
+                    apply_noise=False,          # Supervisor Requirement
+                    apply_white_balance=False,  # Supervisor Requirement
+                    apply_blur=False,           # Supervisor Requirement
+                    reduction_factor=0.01,      # ✅ 0.01 is now "True 1% Light" thanks to Raw Mode
+                    raw_sensor_mode=True,       # ✅ NEW: Disables Gamma boost to force degradation
                     seed=seed + idx,
                     output_format='numpy'
                 )
 
-                # Save low-light version
+                # CRITICAL: This quantization step below is what "locks in" the difficulty.
+                # Values like 0.007 (float) become 2 (int).
+                # Values like 0.001 (float) become 0 (int).
                 low_light_img = (low_light_array * 255).astype(np.uint8)
                 low_path = os.path.join(person_low_dir, img_name)
                 Image.fromarray(low_light_img).save(low_path)
