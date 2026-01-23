@@ -45,7 +45,7 @@ DIFFICULTY_LEVELS = {
         'apply_white_balance': False,
         'wb_variation': 0.1,
         'apply_blur': False,
-        'raw_sensor_mode': True
+        'raw_sensor_mode': False  # Gamma needed to make 1% light visible
     },
     'medium': {
         'reduction_factor': 0.05,
