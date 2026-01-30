@@ -84,13 +84,26 @@ def generate_pairs(test_dir, num_pairs=1000, output_file='pairs.txt', seed=42, m
                            if f.endswith(('.png', '.jpg', '.jpeg'))])
 
         def extract_person_name(filename):
-            """Extract person identity from filename (e.g., George_W_Bush_0001.png -> George_W_Bush)"""
+            """Extract person identity from filename.
+
+            Handles multiple formats:
+            - Original: George_W_Bush_0001.png -> George_W_Bush
+            - With difficulty: George_W_Bush_0001_easy.png -> George_W_Bush
+            - With difficulty: George_W_Bush_0001_medium.png -> George_W_Bush
+            - With difficulty: George_W_Bush_0001_hard.png -> George_W_Bush
+            """
             basename = os.path.splitext(filename)[0]
-            # Split by underscore and remove last part (image number)
             parts = basename.split('_')
+
+            # Remove difficulty suffix if present (_easy, _medium, _hard)
+            if len(parts) > 1 and parts[-1] in ('easy', 'medium', 'hard'):
+                parts = parts[:-1]
+
+            # Remove image number (last numeric part)
             if len(parts) > 1 and parts[-1].isdigit():
-                return '_'.join(parts[:-1])
-            return basename  # Fallback if format doesn't match
+                parts = parts[:-1]
+
+            return '_'.join(parts) if parts else basename
 
         for filename in low_files:
             person_name = extract_person_name(filename)

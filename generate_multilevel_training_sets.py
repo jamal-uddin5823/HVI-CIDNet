@@ -14,16 +14,26 @@ Dataset Structure (preserves LFW person identity):
     ├── train_easy/
     │   ├── low/
     │   │   ├── George_W_Bush/
-    │   │   │   ├── George_W_Bush_0001.png
-    │   │   │   └── George_W_Bush_0002.png
+    │   │   │   ├── George_W_Bush_0001_easy.png
+    │   │   │   └── George_W_Bush_0002_easy.png
     │   │   └── Colin_Powell/
-    │   │       └── Colin_Powell_0001.png
+    │   │       └── Colin_Powell_0001_easy.png
     │   └── high/ (same structure - ground truth)
-    ├── train_medium/ (same structure)
-    ├── train_hard/ (same structure)
+    ├── train_medium/ (same structure with _medium suffix)
+    ├── train_hard/ (same structure with _hard suffix)
     ├── train_mixed/ (optional - combines all levels via symlinks)
+    │   ├── low/
+    │   │   ├── George_W_Bush/
+    │   │   │   ├── George_W_Bush_0001_easy.png
+    │   │   │   ├── George_W_Bush_0001_medium.png
+    │   │   │   └── George_W_Bush_0001_hard.png
+    │   │   └── ...
+    │   └── high/ (same structure)
     ├── val_easy/, val_medium/, val_hard/
     └── test_easy/, test_medium/, test_hard/
+
+    Note: Difficulty level suffix (_easy, _medium, _hard) is added to filenames
+    to prevent collisions when combining levels in the mixed set.
 
 Usage:
     python generate_multilevel_training_sets.py \\
@@ -212,10 +222,11 @@ def generate_level_for_split(
             img = Image.open(img_path).convert('RGB')
             img_array = np.array(img).astype(np.float32) / 255.0
 
-            # Get filename
+            # Get filename - include difficulty level suffix to avoid collisions in mixed set
             original_filename = os.path.basename(img_path)
             img_basename = os.path.splitext(original_filename)[0]
-            img_name = img_basename + '.png'
+            # Add difficulty level suffix (e.g., "_easy", "_medium", "_hard")
+            img_name = f"{img_basename}_{level_name}.png"
 
             # Paths
             high_path = os.path.join(person_high_dir, img_name)

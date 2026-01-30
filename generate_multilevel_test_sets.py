@@ -10,11 +10,39 @@ Each difficulty level represents physically-accurate low-light conditions:
 - Medium: Moderate darkness with minimal sensor noise (5% light, Poisson-Gaussian noise)
 - Hard: Challenging realistic conditions (10% light, higher noise, white balance shift)
 
+Dataset Structure (preserves LFW person identity):
+    datasets/LFW_multilevel/
+    ├── test_easy/
+    │   ├── low/
+    │   │   ├── George_W_Bush/
+    │   │   │   ├── George_W_Bush_0001_easy.png
+    │   │   │   └── George_W_Bush_0002_easy.png
+    │   │   └── Colin_Powell/
+    │   │       └── Colin_Powell_0001_easy.png
+    │   ├── high/ (same structure - ground truth)
+    │   └── pairs.txt
+    ├── test_medium/ (same structure with _medium suffix)
+    ├── test_hard/ (same structure with _hard suffix)
+    └── test_mixed/ (optional - combines all levels via symlinks)
+        ├── low/
+        │   ├── George_W_Bush/
+        │   │   ├── George_W_Bush_0001_easy.png
+        │   │   ├── George_W_Bush_0001_medium.png
+        │   │   └── George_W_Bush_0001_hard.png
+        │   └── ...
+        ├── high/ (same structure)
+        └── pairs.txt
+
+    Note: Difficulty level suffix (_easy, _medium, _hard) is added to filenames
+    to prevent collisions when combining levels in the mixed set.
+
 Usage:
-    python datasets/generate_multilevel_test_sets.py \
+    python generate_multilevel_test_sets.py \
         --source_test_dir=./datasets/LFW_lowlight/test \
         --output_base_dir=./datasets/LFW_multilevel \
-        --num_pairs=1000
+        --num_pairs=1000 \
+        --generate_mixed \
+        --use_symlinks
 """
 
 import os
@@ -73,6 +101,71 @@ DIFFICULTY_LEVELS = {
 
 
 # ============================================================================
+# Mixed Test Set Generation
+# ============================================================================
+
+def generate_mixed_set(output_base_dir, use_symlinks=True):
+    """
+    Generate mixed test set combining all difficulty levels.
+
+    Args:
+        output_base_dir: Base output directory
+        use_symlinks: If True, use symlinks; otherwise copy files
+    """
+    mixed_dir = os.path.join(output_base_dir, 'test_mixed')
+    mixed_low_dir = os.path.join(mixed_dir, 'low')
+    mixed_high_dir = os.path.join(mixed_dir, 'high')
+
+    os.makedirs(mixed_low_dir, exist_ok=True)
+    os.makedirs(mixed_high_dir, exist_ok=True)
+
+    levels = ['easy', 'medium', 'hard']
+    total_files = 0
+
+    print(f"    Generating test_mixed...")
+
+    for level in levels:
+        source_dir = os.path.join(output_base_dir, f'test_{level}')
+
+        for subdir in ['low', 'high']:
+            source_subdir = os.path.join(source_dir, subdir)
+            target_subdir = os.path.join(mixed_dir, subdir)
+
+            if not os.path.exists(source_subdir):
+                continue
+
+            # Copy/symlink all person directories
+            for person_name in os.listdir(source_subdir):
+                source_person_dir = os.path.join(source_subdir, person_name)
+                target_person_dir = os.path.join(target_subdir, person_name)
+
+                if not os.path.isdir(source_person_dir):
+                    continue
+
+                os.makedirs(target_person_dir, exist_ok=True)
+
+                for img_file in os.listdir(source_person_dir):
+                    source_file = os.path.join(source_person_dir, img_file)
+                    target_file = os.path.join(target_person_dir, img_file)
+
+                    # Skip if exists
+                    if os.path.exists(target_file):
+                        continue
+
+                    if use_symlinks:
+                        # Create relative symlink
+                        rel_source = os.path.relpath(source_file, target_person_dir)
+                        os.symlink(rel_source, target_file)
+                    else:
+                        shutil.copy2(source_file, target_file)
+
+                    total_files += 1
+
+    method = "symlinks" if use_symlinks else "copies"
+    print(f"    ✓ Created {total_files} {method}")
+
+
+# ============================================================================
 # Main Generation Function
 # ============================================================================
 
@@ -80,6 +173,8 @@ def generate_multilevel_test_sets(
     source_test_dir: str,
     output_base_dir: str,
     num_pairs: int = 1000,
+    generate_mixed: bool = True,
+    use_symlinks: bool = True,
     seed: int = 42
 ):
     """
@@ -89,14 +184,20 @@ def generate_multilevel_test_sets(
         source_test_dir: Path to source test set with high/ subdirectories
         output_base_dir: Base output directory for multi-level test sets
         num_pairs: Number of pairs per difficulty level
+        generate_mixed: Generate mixed test set combining all levels
+        use_symlinks: Use symlinks for mixed set (saves disk space)
         seed: Random seed for reproducibility
 
     Creates:
         - output_base_dir/test_easy/
         - output_base_dir/test_medium/
         - output_base_dir/test_hard/
+        - output_base_dir/test_mixed/ (if generate_mixed=True)
 
         Each with low/, high/ subdirectories and pairs.txt
+
+    Note: Difficulty level suffix (_easy, _medium, _hard) is added to filenames
+    to prevent collisions when combining levels in the mixed set.
     """
     import numpy as np
     np.random.seed(seed)
@@ -163,11 +264,12 @@ def generate_multilevel_test_sets(
                 # Source image path
                 src_path = os.path.join(source_high_dir, person_name, img_filename)
 
-                # Destination paths
+                # Destination paths - include difficulty level suffix to avoid collisions in mixed set
                 img_basename = os.path.splitext(img_filename)[0]
-                img_ext = '.png'  # Always save as PNG
-                dest_high_path = os.path.join(person_high_dir, img_basename + img_ext)
-                dest_low_path = os.path.join(person_low_dir, img_basename + img_ext)
+                # Add difficulty level suffix (e.g., "_easy", "_medium", "_hard")
+                img_name = f"{img_basename}_{level_name}.png"
+                dest_high_path = os.path.join(person_high_dir, img_name)
+                dest_low_path = os.path.join(person_low_dir, img_name)
 
                 # Copy high-quality ground truth
                 shutil.copy2(src_path, dest_high_path)
@@ -207,12 +309,30 @@ def generate_multilevel_test_sets(
         print()
 
     # Generate pairs for each level
-    print("[Step 3/3] Generating verification pairs...")
+    print("[Step 3/4] Generating verification pairs...")
     for level_name in DIFFICULTY_LEVELS.keys():
         output_test_dir = os.path.join(output_base_dir, f'test_{level_name}')
         pairs_file = os.path.join(output_test_dir, 'pairs.txt')
 
         print(f"  Generating pairs for {level_name}...")
+        num_genuine, num_impostor = generate_pairs(
+            test_dir=output_test_dir,
+            num_pairs=num_pairs,
+            output_file=pairs_file,
+            seed=seed
+        )
+        print(f"    ✓ {num_genuine} genuine + {num_impostor} impostor pairs")
+
+    # Generate mixed test set
+    if generate_mixed:
+        print("\n[Step 4/4] Generating mixed test set...")
+        generate_mixed_set(output_base_dir, use_symlinks)
+
+        # Generate pairs for mixed set
+        output_test_dir = os.path.join(output_base_dir, 'test_mixed')
+        pairs_file = os.path.join(output_test_dir, 'pairs.txt')
+
+        print(f"  Generating pairs for mixed...")
         num_genuine, num_impostor = generate_pairs(
             test_dir=output_test_dir,
             num_pairs=num_pairs,
@@ -233,14 +353,34 @@ def generate_multilevel_test_sets(
     print(f"  │   ├── high/")
     print(f"  │   └── pairs.txt")
     print(f"  ├── test_medium/")
-    print(f"  │   └── ...")
-    print(f"  └── test_hard/")
-    print(f"      └── ...")
+    print(f"  │   ├── low/")
+    print(f"  │   ├── high/")
+    print(f"  │   └── pairs.txt")
+    print(f"  ├── test_hard/")
+    print(f"  │   ├── low/")
+    print(f"  │   ├── high/")
+    print(f"  │   └── pairs.txt")
+    if generate_mixed:
+        print(f"  └── test_mixed/")
+        print(f"      ├── low/")
+        print(f"      ├── high/")
+        print(f"      └── pairs.txt")
     print()
     print("Difficulty level specifications:")
     print("  Easy:   1% light, no noise (ceiling performance)")
     print("  Medium: 5% light, minimal Poisson-Gaussian noise")
     print("  Hard:   10% light, higher noise, white balance shift")
+    print()
+    print("Recommended evaluation:")
+    print("  1. Evaluate on each difficulty level separately:")
+    print(f"     python eval_face_verification.py \\")
+    print(f"       --test_dir={output_base_dir}/test_easy \\")
+    print(f"       --pairs_file={output_base_dir}/test_easy/pairs.txt")
+    if generate_mixed:
+        print(f"  2. Evaluate on mixed set (combined all levels):")
+        print(f"     python eval_face_verification.py \\")
+        print(f"       --test_dir={output_base_dir}/test_mixed \\")
+        print(f"       --pairs_file={output_base_dir}/test_mixed/pairs.txt")
     print()
 
 
@@ -254,15 +394,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate 1000 pairs per level
-  python datasets/generate_multilevel_test_sets.py \\
-      --source_test_dir=./datasets/LFW_lowlight/test \\
+  # Generate test sets with mixed set
+  python generate_multilevel_test_sets.py \\
+      --source_test_dir=./datasets/LFW_multilevel/test \\
       --output_base_dir=./datasets/LFW_multilevel \\
-      --num_pairs=1000
+      --num_pairs=1000 \\
+      --generate_mixed \\
+      --use_symlinks
 
-  # Use custom number of pairs
-  python datasets/generate_multilevel_test_sets.py \\
-      --source_test_dir=./datasets/LFW_lowlight/test \\
+  # Generate only individual levels (no mixed)
+  python generate_multilevel_test_sets.py \\
+      --source_test_dir=./datasets/LFW_multilevel/test \\
       --output_base_dir=./datasets/LFW_multilevel \\
       --num_pairs=500
         """
@@ -290,6 +432,18 @@ Examples:
     )
 
     parser.add_argument(
+        '--generate_mixed',
+        action='store_true',
+        help='Generate mixed test set (all levels combined)'
+    )
+
+    parser.add_argument(
+        '--use_symlinks',
+        action='store_true',
+        help='Use symbolic links for mixed set (saves disk space)'
+    )
+
+    parser.add_argument(
         '--seed',
         type=int,
         default=42,
@@ -303,6 +457,8 @@ Examples:
             source_test_dir=args.source_test_dir,
             output_base_dir=args.output_base_dir,
             num_pairs=args.num_pairs,
+            generate_mixed=args.generate_mixed,
+            use_symlinks=args.use_symlinks,
             seed=args.seed
         )
         return 0
