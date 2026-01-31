@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(dir \"D:\\\\Prog_Stuffs\\\\Thesis\\\\code\")",
+      "Bash(dir:*)"
     ]
   },
   "outputStyle": "default"
