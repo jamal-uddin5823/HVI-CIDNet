@@ -252,6 +252,11 @@ class InsightFaceRecognizer(BaseRecognizer):
         self.model_name = model_name
         self.eval()
 
+    def eval(self):
+        """Override eval for InsightFace - ONNX models don't have train/eval modes"""
+        # ONNX models don't have train/eval mode, just return self for API compatibility
+        return self
+
     def get_embedding(self, image_tensor: torch.Tensor) -> torch.Tensor:
         """Extract face embedding using InsightFace
 
