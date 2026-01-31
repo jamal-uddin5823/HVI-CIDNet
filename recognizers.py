@@ -99,6 +99,14 @@ class BaseRecognizer(ABC):
         """
         pass
 
+    def eval(self):
+        """Set model to evaluation mode"""
+        if self.model is not None:
+            self.model.eval()
+            for param in self.model.parameters():
+                param.requires_grad = False
+        return self
+
 
 class AdaFaceRecognizer(BaseRecognizer):
     """AdaFace Face Recognizer
@@ -185,14 +193,6 @@ class AdaFaceRecognizer(BaseRecognizer):
         except Exception as e:
             print(f"Warning: Could not load weights from {weights_path}: {e}")
             print("Using randomly initialized weights (for testing only)")
-
-    def eval(self):
-        """Set model to evaluation mode"""
-        if self.model is not None:
-            self.model.eval()
-            for param in self.model.parameters():
-                param.requires_grad = False
-        return self
 
 
 class InsightFaceRecognizer(BaseRecognizer):

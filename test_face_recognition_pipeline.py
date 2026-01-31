@@ -389,14 +389,25 @@ class TestEnhancementQuality:
     def test_enhancement_padding_to_multiple_of_8(self, loaded_enhancer):
         """Test enhancement handles padding correctly"""
         # Input with dimensions not divisible by 8
+        # Need to pad before passing to model (as the app does)
         input_tensor = torch.randn(1, 3, 125, 94)
 
-        with torch.no_grad():
-            enhanced = loaded_enhancer(input_tensor)
+        # Pad to multiple of 8 (required by the model)
+        factor = 8
+        h, w = input_tensor.shape[2], input_tensor.shape[3]
+        H, W = ((h + factor) // factor) * factor, ((w + factor) // factor) * factor
+        padh = H - h if h % factor != 0 else 0
+        padw = W - w if w % factor != 0 else 0
+        input_padded = F.pad(input_tensor, (0, padw, 0, padh), 'reflect')
 
-        # Output should handle padding internally
+        with torch.no_grad():
+            enhanced = loaded_enhancer(input_padded)
+
+        # Check output shape matches padded input
         assert enhanced.shape[0] == 1  # Batch size preserved
         assert enhanced.shape[1] == 3  # Channels preserved
+        assert enhanced.shape[2] == H  # Height matches padded size
+        assert enhanced.shape[3] == W  # Width matches padded size
 
 
 class TestDatabaseOperations:
