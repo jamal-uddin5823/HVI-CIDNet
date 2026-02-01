@@ -175,39 +175,96 @@ run_training "baseline" "baseline"
 run_training "face_loss3" "face_loss3"
 run_training "face_loss5" "face_loss5"
 
+# Also copy loss history to model-specific directories for easy parsing
+echo -e "\n${BLUE}[STEP 3.5] Organizing Training Metrics...${NC}"
+for model_name in baseline face_loss3 face_loss5; do
+    model_dir="weights/multilevel/${model_name}"
+    mkdir -p "${model_dir}"
+    # Copy latest loss history and metrics to model directory
+    latest_loss=$(ls -t ./results/training/loss_history*.json 2>/dev/null | head -1)
+    latest_metrics=$(ls -t ./results/training/metrics*.md 2>/dev/null | head -1)
+    if [ -n "$latest_loss" ]; then
+        cp "$latest_loss" "${model_dir}/loss_history.json"
+        echo "  Copied loss history to ${model_dir}/"
+    fi
+    if [ -n "$latest_metrics" ]; then
+        cp "$latest_metrics" "${model_dir}/metrics.md"
+        echo "  Copied metrics to ${model_dir}/"
+    fi
+done
+echo -e "${GREEN}Training metrics organized!${NC}"
+
 # ============================================================
-# STEP 4: Evaluate Models on Mixed Test Set
+# STEP 4: Evaluate Models on All Difficulty Levels
 # ============================================================
-echo -e "\n${BLUE}[STEP 4] Evaluating Models on Mixed Test Set...${NC}"
+echo -e "\n${BLUE}[STEP 4] Evaluating Models on All Difficulty Levels...${NC}"
 
 # Create results directory for evaluations
 mkdir -p results/multilevel_evaluations
 
-# Function to run evaluation
-run_evaluation() {
+# Function to run evaluation on a specific difficulty level
+run_evaluation_on_difficulty() {
     local model_name=$1
     local weights_path=$2
-    
-    echo -e "\n${GREEN}[$(date)] Evaluating: ${model_name}${NC}"
+    local difficulty=$3
+
+    local output_dir="results/multilevel_evaluations/${model_name}/${difficulty}"
+    mkdir -p "${output_dir}"
+
+    echo -e "\n${GREEN}[$(date)] Evaluating: ${model_name} on ${difficulty}${NC}"
     echo -e "${YELLOW}Model: ${weights_path}${NC}"
-    echo -e "${YELLOW}Test set: ./datasets/LFW_multilevel/test_mixed${NC}\n"
-    
+    echo -e "${YELLOW}Test set: ./datasets/LFW_multilevel/test_${difficulty}${NC}\n"
+
     if python eval_face_verification.py \
         --model="${weights_path}" \
-        --test_dir=./datasets/LFW_multilevel/test_mixed \
-        --pairs_file=./datasets/LFW_multilevel/test_mixed/pairs.txt \
-        --output_dir=results/multilevel_evaluations/${model_name}; then
-        echo -e "${GREEN}[$(date)] Evaluation completed: ${model_name}${NC}"
+        --test_dir=./datasets/LFW_multilevel/test_${difficulty} \
+        --pairs_file=./datasets/LFW_multilevel/test_${difficulty}/pairs.txt \
+        --output_dir="${output_dir}"; then
+        echo -e "${GREEN}[$(date)] Evaluation completed: ${model_name} on ${difficulty}${NC}"
     else
-        echo -e "${RED}[$(date)] Evaluation failed: ${model_name}${NC}"
+        echo -e "${RED}[$(date)] Evaluation failed: ${model_name} on ${difficulty}${NC}"
         exit 1
     fi
 }
 
-# Run evaluations for all models
-run_evaluation "baseline" "./weights/multilevel/baseline/epoch_200.pth"
-run_evaluation "face_loss3" "./weights/multilevel/face_loss3/epoch_200.pth"
-run_evaluation "face_loss5" "./weights/multilevel/face_loss5/epoch_200.pth"
+# Function to run evaluation on all difficulties for a model
+run_all_difficulties() {
+    local model_name=$1
+    local weights_path=$2
+
+    for difficulty in easy medium hard mixed; do
+        run_evaluation_on_difficulty "${model_name}" "${weights_path}" "${difficulty}"
+    done
+}
+
+# Run evaluations for all models on all difficulties
+run_all_difficulties "baseline" "./weights/multilevel/baseline/epoch_70.pth"
+run_all_difficulties "face_loss3" "./weights/multilevel/face_loss3/epoch_70.pth"
+run_all_difficulties "face_loss5" "./weights/multilevel/face_loss5/epoch_70.pth"
+
+# ============================================================
+# STEP 5: Generate Thesis Visualizations
+# ============================================================
+echo -e "\n${BLUE}[STEP 5] Generating Thesis Visualizations...${NC}"
+
+mkdir -p figures/thesis
+
+# Generate main thesis figures
+python plot_thesis_summary.py \
+    --results_dir=./results/multilevel_evaluations \
+    --output_dir=figures/thesis
+
+# Generate multi-level comparison plots
+python plot_multilevel_results.py \
+    --results_dir=./results/multilevel_evaluations \
+    --output_dir=figures
+
+# Generate verification analysis (ROC curves, distributions)
+python plot_verification_analysis.py \
+    --results_dir=./results/multilevel_evaluations \
+    --output_dir=figures
+
+echo -e "${GREEN}[$(date)] Thesis figures generated!${NC}"
 
 # ============================================================
 # Summary
@@ -221,9 +278,18 @@ echo -e "  - weights/multilevel/baseline/"
 echo -e "  - weights/multilevel/face_loss3/"
 echo -e "  - weights/multilevel/face_loss5/"
 
-echo -e "\n${YELLOW}Evaluation Results:${NC}"
-echo -e "  - results/multilevel_evaluations/baseline/"
-echo -e "  - results/multilevel_evaluations/face_loss3/"
-echo -e "  - results/multilevel_evaluations/face_loss5/"
+echo -e "\n${YELLOW}Evaluation Results (all difficulties):${NC}"
+echo -e "  - results/multilevel_evaluations/baseline/{easy,medium,hard,mixed}/"
+echo -e "  - results/multilevel_evaluations/face_loss3/{easy,medium,hard,mixed}/"
+echo -e "  - results/multilevel_evaluations/face_loss5/{easy,medium,hard,mixed}/"
+
+echo -e "\n${YELLOW}Thesis Figures:${NC}"
+echo -e "  - figures/thesis/thesis_main_results.png"
+echo -e "  - figures/thesis/thesis_comprehensive_summary.png"
+echo -e "  - figures/thesis/thesis_tradeoff_analysis.png"
+echo -e "  - figures/multilevel_model_comparison.png"
+echo -e "  - figures/degradation_curves.png"
+echo -e "  - figures/roc_curves_*.png"
+echo -e "  - figures/score_distributions_*.png"
 
 echo -e "\n${GREEN}Pipeline complete!${NC}"

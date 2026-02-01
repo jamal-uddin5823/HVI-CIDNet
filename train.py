@@ -19,8 +19,21 @@ from loss.discriminative_face_loss import DiscriminativeMultiLevelFaceLoss
 from data.hard_negative_sampler import HardNegativeSampler
 from data.identity_balanced_sampler import IdentityBalancedSampler
 import gc
+import json
 
 opt = option().parse_args()
+
+# Global storage for loss history
+loss_history = {
+    'total': [],
+    'l1': [],
+    'ssim': [],
+    'perceptual': [],
+    'edge': [],
+    'hvi': [],
+    'face': [],
+    'epochs': []
+}
 
 # Enable CUDA error checking for debugging
 if os.environ.get('CUDA_LAUNCH_BLOCKING') != '1':
@@ -61,11 +74,23 @@ def train(epoch):
     pic_last_10 = 0
     train_len = len(training_data_loader)
     iter = 0
+
+    # Per-epoch loss tracking
+    epoch_loss_components = {
+        'l1': [],
+        'ssim': [],
+        'perceptual': [],
+        'edge': [],
+        'hvi': [],
+        'face': [],
+        'total': []
+    }
+
     torch.autograd.set_detect_anomaly(opt.grad_detect)
     for batch in tqdm(training_data_loader):
         im1, im2, path1, path2 = batch[0], batch[1], batch[2], batch[3]
         batch_size = im1.shape[0]
-        
+
         # Validate batch before processing
         if torch.isnan(im1).any() or torch.isinf(im1).any():
             print(f"Warning: Invalid input batch detected, skipping...")
@@ -75,11 +100,11 @@ def train(epoch):
             print(f"  GT range: [{im2.min()}, {im2.max()}]")
             print(f"  Files: {path1[0]}, {path2[0]}")
             continue
-        
+
         # Clamp inputs to valid range
         im1 = torch.clamp(im1, 0, 1)
         im2 = torch.clamp(im2, 0, 1)
-        
+
         try:
             im1 = im1.cuda(non_blocking=True)
             im2 = im2.cuda(non_blocking=True)
@@ -88,19 +113,39 @@ def train(epoch):
             torch.cuda.empty_cache()
             gc.collect()
             continue
-        
+
         # use random gamma function (enhancement curve) to improve generalization
         if opt.gamma:
             gamma = random.randint(opt.start_gamma,opt.end_gamma) / 100.0
-            output_rgb = model(im1 ** gamma)  
+            output_rgb = model(im1 ** gamma)
         else:
-            output_rgb = model(im1)  
-            
+            output_rgb = model(im1)
+
         gt_rgb = im2
         output_hvi = model.HVIT(output_rgb)
         gt_hvi = model.HVIT(gt_rgb)
-        loss_hvi = L1_loss(output_hvi, gt_hvi) + D_loss(output_hvi, gt_hvi) + E_loss(output_hvi, gt_hvi) + opt.P_weight * P_loss(output_hvi, gt_hvi)[0]
-        loss_rgb = L1_loss(output_rgb, gt_rgb) + D_loss(output_rgb, gt_rgb) + E_loss(output_rgb, gt_rgb) + opt.P_weight * P_loss(output_rgb, gt_rgb)[0]
+
+        # Compute individual loss components for tracking
+        l1_loss_val = L1_loss(output_hvi, gt_hvi)
+        d_loss_val = D_loss(output_hvi, gt_hvi)
+        e_loss_val = E_loss(output_hvi, gt_hvi)
+        p_loss_val = P_loss(output_hvi, gt_hvi)[0]
+
+        loss_hvi = l1_loss_val + d_loss_val + e_loss_val + opt.P_weight * p_loss_val
+
+        # Also compute RGB losses for tracking
+        l1_rgb = L1_loss(output_rgb, gt_rgb)
+        d_rgb = D_loss(output_rgb, gt_rgb)
+        e_rgb = E_loss(output_rgb, gt_rgb)
+        p_rgb = P_loss(output_rgb, gt_rgb)[0]
+        loss_rgb = l1_rgb + d_rgb + e_rgb + p_rgb
+
+        # Track loss components (using RGB losses as they're the main ones)
+        epoch_loss_components['l1'].append(l1_rgb.item())
+        epoch_loss_components['ssim'].append(d_rgb.item())
+        epoch_loss_components['perceptual'].append(p_rgb.item())
+        epoch_loss_components['edge'].append(e_rgb.item())
+        epoch_loss_components['hvi'].append(loss_hvi.item())
 
         # Add Face Recognition Perceptual Loss if enabled
         if opt.use_face_loss and FR_loss is not None:
@@ -125,6 +170,9 @@ def train(epoch):
                 face_loss_dict = FR_loss(output_rgb, gt_rgb, impostor_gt)
                 fr_loss_value = face_loss_dict['total']
 
+                # Track face loss components
+                epoch_loss_components['face'].append(fr_loss_value.item())
+
                 # Log face loss components every 100 iterations
                 if iter % 100 == 0:
                     print(f"\n  Face Loss Components (iter {iter}):")
@@ -138,21 +186,26 @@ def train(epoch):
             else:
                 # Fallback for batch_size=1 (no impostor available)
                 fr_loss_value = FR_loss(output_rgb, gt_rgb, gt_rgb)['total']
+                epoch_loss_components['face'].append(fr_loss_value.item())
                 if iter % 100 == 0:
                     print(f"\n  Warning: Batch size = 1, using paired loss only")
 
             loss = loss_rgb + opt.HVI_weight * loss_hvi + opt.FR_weight * fr_loss_value
         else:
             loss = loss_rgb + opt.HVI_weight * loss_hvi
+            epoch_loss_components['face'].append(0.0)
 
         iter += 1
+
+        # Track total loss
+        epoch_loss_components['total'].append(loss.item())
 
         # Periodic memory cleanup for face loss (every 50 iterations)
         if opt.use_face_loss and FR_loss is not None and iter % 50 == 0:
             FR_loss.cleanup_memory()
 
         optimizer.zero_grad()
-        
+
         try:
             loss.backward()
         except RuntimeError as e:
@@ -164,15 +217,15 @@ def train(epoch):
             torch.cuda.empty_cache()
             gc.collect()
             continue
-        
+
         if opt.grad_clip:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01, norm_type=2)
-        
+
         optimizer.step()
-        
+
         # Store loss value and update counters
         loss_value = loss.item()
-        
+
         # Check for NaN/Inf
         if not torch.isfinite(loss).all():
             print(f"WARNING: Non-finite loss detected at iteration {iter}")
@@ -186,12 +239,12 @@ def train(epoch):
             print(f"  Batch files: {path1[0]}, {path2[0]}")
             print(f"  Skipping this batch and continuing training...")
             continue  # Skip this batch instead of crashing
-        
+
         loss_print = loss_print + loss_value
         loss_last_10 = loss_last_10 + loss_value
         pic_cnt += 1
         pic_last_10 += 1
-        
+
         # Save sample images at end of epoch (before cleanup)
         if iter == train_len:
             print("===> Epoch[{}]: Loss: {:.4f} || Learning rate: lr={}.".format(epoch,
@@ -200,8 +253,8 @@ def train(epoch):
             pic_last_10 = 0
             output_img = transforms.ToPILImage()((output_rgb)[0].squeeze(0))
             gt_img = transforms.ToPILImage()((gt_rgb)[0].squeeze(0))
-            if not os.path.exists(opt.val_folder+'training'):          
-                os.mkdir(opt.val_folder+'training') 
+            if not os.path.exists(opt.val_folder+'training'):
+                os.mkdir(opt.val_folder+'training')
             output_img.save(opt.val_folder+'training/test.png')
             gt_img.save(opt.val_folder+'training/gt.png')
 
@@ -211,6 +264,13 @@ def train(epoch):
 
     torch.cuda.empty_cache()
     gc.collect()
+
+    # Record average loss components for this epoch
+    for key in epoch_loss_components:
+        if epoch_loss_components[key]:
+            avg_loss = np.mean(epoch_loss_components[key])
+            loss_history[key].append(avg_loss)
+    loss_history['epochs'].append(epoch)
 
     return loss_print, pic_cnt
                 
@@ -548,5 +608,44 @@ if __name__ == '__main__':
         f.write("| Epochs | PSNR | SSIM | LPIPS |\n")
         f.write("|----------------------|----------------------|----------------------|----------------------|\n")
         for i in range(len(psnr)):
-            f.write(f"| {opt.start_epoch+(i+1)*opt.snapshots} | { psnr[i]:.4f} | {ssim[i]:.4f} | {lpips[i]:.4f} |\n")  
+            f.write(f"| {opt.start_epoch+(i+1)*opt.snapshots} | { psnr[i]:.4f} | {ssim[i]:.4f} | {lpips[i]:.4f} |\n")
+
+    # Save loss history to JSON for visualization
+    os.makedirs("./results/training", exist_ok=True)
+    loss_history_json = {
+        'loss_history': {
+            'total': loss_history['total'],
+            'l1': loss_history['l1'],
+            'ssim': loss_history['ssim'],
+            'perceptual': loss_history['perceptual'],
+            'edge': loss_history['edge'],
+            'hvi': loss_history['hvi'],
+            'face': loss_history['face']
+        },
+        'epochs': loss_history['epochs'],
+        'validation': {
+            'epochs': [opt.start_epoch+(i+1)*opt.snapshots for i in range(len(psnr))],
+            'psnr': psnr,
+            'ssim': ssim,
+            'lpips': lpips
+        },
+        'config': {
+            'dataset': output_folder,
+            'lr': opt.lr,
+            'batch_size': opt.batchSize,
+            'crop_size': opt.cropSize,
+            'HVI_weight': opt.HVI_weight,
+            'L1_weight': opt.L1_weight,
+            'D_weight': opt.D_weight,
+            'E_weight': opt.E_weight,
+            'P_weight': opt.P_weight,
+            'FR_weight': opt.FR_weight if opt.use_face_loss else 0.0,
+            'FR_model': opt.FR_model_arch if opt.use_face_loss else None,
+        }
+    }
+
+    json_path = f"./results/training/loss_history{now}.json"
+    with open(json_path, 'w') as f:
+        json.dump(loss_history_json, f, indent=2)
+    print(f"Loss history saved to: {json_path}")  
         

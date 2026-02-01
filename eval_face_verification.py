@@ -28,6 +28,7 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
+import json
 
 import torch
 import torch.nn as nn
@@ -612,6 +613,43 @@ def evaluate_face_verification_with_pairs(
                 f.write(f"  Average SSIM: {results['ssim_mean']:.4f}\n")
 
         print(f"\nResults saved to: {results_file}")
+
+        # Also save JSON with scores and ROC data for visualization
+        json_file = os.path.join(output_dir, 'verification_scores.json')
+        json_data = {
+            'genuine_scores_low': genuine_scores_low,
+            'genuine_scores_enhanced': genuine_scores_enhanced,
+            'impostor_scores_low': impostor_scores_low,
+            'impostor_scores_enhanced': impostor_scores_enhanced,
+            'roc_data': {
+                'low': {
+                    'tpr': tar_low_list,
+                    'fpr': far_low_list,
+                    'thresholds': thresholds.tolist()
+                },
+                'enhanced': {
+                    'tpr': tar_enhanced_list,
+                    'fpr': far_enhanced_list,
+                    'thresholds': thresholds.tolist()
+                }
+            },
+            'metrics': {
+                'eer_low': float(eer_low),
+                'eer_enhanced': float(eer_enhanced),
+                'eer_threshold_low': float(eer_thresh_low),
+                'eer_threshold_enhanced': float(eer_thresh_enh),
+                'tar_at_far_0.1%_low': float(tar_at_far_001_low),
+                'tar_at_far_0.1%_enhanced': float(tar_at_far_001_enh),
+                'tar_at_far_1%_low': float(tar_at_far_01_low),
+                'tar_at_far_1%_enhanced': float(tar_at_far_01_enh),
+                'psnr_mean': float(results['psnr_mean']) if psnr_values else 0.0,
+                'ssim_mean': float(results['ssim_mean']) if ssim_values else 0.0,
+            }
+        }
+
+        with open(json_file, 'w') as f:
+            json.dump(json_data, f, indent=2)
+        print(f"JSON scores saved to: {json_file}")
 
     return results
 
