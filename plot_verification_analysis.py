@@ -34,7 +34,11 @@ from scipy import stats
 matplotlib.use('Agg')
 
 # Set style for publication-quality figures
-plt.style.use('seaborn-v0_8-paper')
+try:
+    plt.style.use('seaborn-v0_8-paper')
+except:
+    # Fallback if seaborn-v0_8 style not available
+    plt.style.use('seaborn-paper')
 matplotlib.rcParams['font.size'] = 10
 matplotlib.rcParams['axes.labelsize'] = 11
 matplotlib.rcParams['axes.titlesize'] = 12

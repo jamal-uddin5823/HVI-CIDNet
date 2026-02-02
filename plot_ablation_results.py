@@ -28,7 +28,10 @@ from pathlib import Path
 matplotlib.use('Agg')
 
 # Set style for publication-quality figures
-plt.style.use('seaborn-v0_8-paper')
+try:
+    plt.style.use('seaborn-v0_8-paper')
+except:
+    plt.style.use('seaborn-paper')
 matplotlib.rcParams['font.size'] = 10
 matplotlib.rcParams['axes.labelsize'] = 11
 matplotlib.rcParams['axes.titlesize'] = 12

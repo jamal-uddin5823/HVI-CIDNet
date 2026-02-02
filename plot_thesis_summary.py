@@ -7,14 +7,14 @@ Generates publication-quality main results figures for thesis:
 3. Trade-off analysis (Pareto frontier)
 4. Quality vs. verification correlation
 
-These figures are designed for direct inclusion in the thesis document.
+This version parses results directly from face_eval.log file.
 
 Usage:
     # Generate all thesis figures
-    python plot_thesis_summary.py --results_dir=./results/multilevel_evaluations
+    python plot_thesis_summary.py
 
-    # Generate specific figure type
-    python plot_thesis_summary.py --figure_type=main_results
+    # Custom log file
+    python plot_thesis_summary.py --eval_log=./face_eval.log
 
     # Custom output directory
     python plot_thesis_summary.py --output_dir=./figures/thesis
@@ -23,25 +23,23 @@ Usage:
 import os
 import re
 import argparse
-import json
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 from pathlib import Path
 from collections import defaultdict
 
-# Use non-interactive backend
+# Use non-interactive backend for HPC
 matplotlib.use('Agg')
 
 # Set publication-quality style
-plt.style.use('seaborn-v0_8-paper')
-matplotlib.rcParams['font.size'] =11
-matplotlib.rcParams['axes.labelsize'] = 12
-matplotlib.rcParams['axes.titlesize'] = 13
-matplotlib.rcParams['xtick.labelsize'] = 10
-matplotlib.rcParams['ytick.labelsize'] = 10
-matplotlib.rcParams['legend.fontsize'] = 10
-matplotlib.rcParams['figure.titlesize'] = 14
+plt.rcParams['font.size'] = 11
+plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['axes.titlesize'] = 13
+plt.rcParams['xtick.labelsize'] = 10
+plt.rcParams['ytick.labelsize'] = 10
+plt.rcParams['legend.fontsize'] = 10
+plt.rcParams['figure.titlesize'] = 14
 
 # Define thesis color scheme (colorblind-friendly)
 THESIS_COLORS = {
@@ -60,74 +58,83 @@ MODEL_LABELS = {
 }
 
 
-def parse_verification_results(filepath):
-    """Parse face verification results file"""
-    metrics = {}
+def parse_face_eval_log(filepath):
+    """Parse face verification results from eval log file
+
+    Expected log format:
+        Evaluating: <model> on <difficulty>
+        ...
+        Equal Error Rate (EER):
+            Enhanced:   X.XX%
+        True Accept Rate @ FAR=0.1%:
+            Enhanced:   XX.XX%
+        True Accept Rate @ FAR=1%:
+            Enhanced:   XX.XX%
+        Genuine Pair Scores:
+            Enhanced avg similarity:   X.XXXX
+        Average PSNR: X.XX dB
+        Average SSIM: X.XXXX
+    """
+    results = defaultdict(lambda: defaultdict(dict))
 
     if not os.path.exists(filepath):
-        return None
+        print(f"Warning: Log file not found: {filepath}")
+        return {}
 
-    with open(filepath, 'r') as f:
+    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
         content = f.read()
 
-    try:
-        # Genuine pair similarity
-        match = re.search(r'Enhanced avg similarity:\s+([\d.]+)', content)
+    # Split into evaluation sections
+    # Each section starts with "Evaluating: <model> on <difficulty>"
+    sections = re.split(r'Evaluating:\s+(\S+)\s+on\s+(\w+)', content)
+
+    for i in range(1, len(sections), 2):
+        if i + 1 >= len(sections):
+            break
+
+        model = sections[i].strip()
+        difficulty = sections[i + 1]
+
+        # Extract the section content (until next "Evaluating:" or end)
+        if i + 2 < len(sections):
+            section_content = sections[i + 2]
+        else:
+            section_content = sections[-1]
+
+        # Parse EER
+        match = re.search(r'Equal Error Rate.*?Enhanced:\s+([\d.]+)%', section_content, re.DOTALL)
         if match:
-            metrics['genuine_similarity'] = float(match.group(1))
+            results[model][difficulty]['eer'] = float(match.group(1))
 
-        # EER
-        match = re.search(r'Enhanced:\s+([\d.]+)%.*?EER', content)
+        # Parse TAR @ FAR=0.1%
+        match = re.search(r'TAR.*?FAR=0\.1%.*?Enhanced:\s+([\d.]+)%', section_content, re.DOTALL)
         if match:
-            metrics['eer'] = float(match.group(1))
+            results[model][difficulty]['tar_001'] = float(match.group(1))
 
-        # TAR @ FAR = 0.1%
-        match = re.search(r'TAR @ FAR=0\.1%.*?Enhanced:\s+([\d.]+)%', content, re.DOTALL)
+        # Parse TAR @ FAR=1%
+        match = re.search(r'TAR.*?FAR=1%.*?Enhanced:\s+([\d.]+)%', section_content, re.DOTALL)
         if match:
-            metrics['tar_001'] = float(match.group(1))
+            results[model][difficulty]['tar_01'] = float(match.group(1))
 
-        # TAR @ FAR = 1%
-        match = re.search(r'TAR @ FAR=1%.*?Enhanced:\s+([\d.]+)%', content, re.DOTALL)
+        # Parse genuine similarity
+        match = re.search(r'Enhanced avg similarity:\s+([\d.]+)', section_content)
         if match:
-            metrics['tar_01'] = float(match.group(1))
+            results[model][difficulty]['genuine_similarity'] = float(match.group(1))
 
-        # PSNR
-        match = re.search(r'Average PSNR:\s+([\d.]+)', content)
+        # Parse PSNR
+        match = re.search(r'Average PSNR:\s+([\d.]+)', section_content)
         if match:
-            metrics['psnr'] = float(match.group(1))
+            results[model][difficulty]['psnr'] = float(match.group(1))
 
-        # SSIM
-        match = re.search(r'Average SSIM:\s+([\d.]+)', content)
+        # Parse SSIM
+        match = re.search(r'Average SSIM:\s+([\d.]+)', section_content)
         if match:
-            metrics['ssim'] = float(match.group(1))
+            results[model][difficulty]['ssim'] = float(match.group(1))
 
-    except Exception as e:
-        print(f"Warning: Error parsing {filepath}: {e}")
-        return None
-
-    return metrics
+    return dict(results)
 
 
-def load_results(results_dir):
-    """Load all evaluation results"""
-    results = {}
-    base_dir = Path(results_dir)
-
-    models = ['baseline', 'face_loss3', 'face_loss5']
-
-    for model in models:
-        model_dir = base_dir / model
-        if not model_dir.exists():
-            continue
-
-        results_file = model_dir / 'face_verification_results.txt'
-        if results_file.exists():
-            results[model] = parse_verification_results(results_file)
-
-    return results
-
-
-def plot_main_results_2x2(results, output_dir):
+def plot_main_results_2x2(results, output_dir, difficulty='mixed'):
     """Generate 2×2 main results figure for thesis
 
     This is the key figure showing:
@@ -146,12 +153,13 @@ def plot_main_results_2x2(results, output_dir):
     ax = axes[0, 0]
     eers = []
     for model in models:
-        if model in results and 'eer' in results[model]:
-            eers.append(results[model]['eer'])
+        if model in results and difficulty in results[model] and 'eer' in results[model][difficulty]:
+            eers.append(results[model][difficulty]['eer'])
         else:
             eers.append(0)
 
-    bars = ax.bar(x, eers, width, color=[THESIS_COLORS[m] for m in models], alpha=0.8, edgecolor='black', linewidth=1.2)
+    bars = ax.bar(x, eers, width, color=[THESIS_COLORS[m] for m in models],
+                  alpha=0.8, edgecolor='black', linewidth=1.2)
     ax.set_ylabel('Equal Error Rate (%)', fontsize=12)
     ax.set_title('(a) Equal Error Rate', fontsize=13, fontweight='bold')
     ax.set_xticks(x)
@@ -159,7 +167,6 @@ def plot_main_results_2x2(results, output_dir):
     ax.grid(True, alpha=0.3, axis='y')
     ax.set_ylim([0, max(eers) * 1.2 if eers else 10])
 
-    # Add value labels on bars
     for i, (bar, eer) in enumerate(zip(bars, eers)):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height,
@@ -169,12 +176,13 @@ def plot_main_results_2x2(results, output_dir):
     ax = axes[0, 1]
     tars = []
     for model in models:
-        if model in results and 'tar_01' in results[model]:
-            tars.append(results[model]['tar_01'])
+        if model in results and difficulty in results[model] and 'tar_01' in results[model][difficulty]:
+            tars.append(results[model][difficulty]['tar_01'])
         else:
             tars.append(0)
 
-    bars = ax.bar(x, tars, width, color=[THESIS_COLORS[m] for m in models], alpha=0.8, edgecolor='black', linewidth=1.2)
+    bars = ax.bar(x, tars, width, color=[THESIS_COLORS[m] for m in models],
+                  alpha=0.8, edgecolor='black', linewidth=1.2)
     ax.set_ylabel('True Accept Rate (%)', fontsize=12)
     ax.set_title('(b) TAR @ FAR = 1%', fontsize=13, fontweight='bold')
     ax.set_xticks(x)
@@ -191,12 +199,13 @@ def plot_main_results_2x2(results, output_dir):
     ax = axes[1, 0]
     tars = []
     for model in models:
-        if model in results and 'tar_001' in results[model]:
-            tars.append(results[model]['tar_001'])
+        if model in results and difficulty in results[model] and 'tar_001' in results[model][difficulty]:
+            tars.append(results[model][difficulty]['tar_001'])
         else:
             tars.append(0)
 
-    bars = ax.bar(x, tars, width, color=[THESIS_COLORS[m] for m in models], alpha=0.8, edgecolor='black', linewidth=1.2)
+    bars = ax.bar(x, tars, width, color=[THESIS_COLORS[m] for m in models],
+                  alpha=0.8, edgecolor='black', linewidth=1.2)
     ax.set_ylabel('True Accept Rate (%)', fontsize=12)
     ax.set_title('(c) TAR @ FAR = 0.1%', fontsize=13, fontweight='bold')
     ax.set_xticks(x)
@@ -213,12 +222,13 @@ def plot_main_results_2x2(results, output_dir):
     ax = axes[1, 1]
     sims = []
     for model in models:
-        if model in results and 'genuine_similarity' in results[model]:
-            sims.append(results[model]['genuine_similarity'])
+        if model in results and difficulty in results[model] and 'genuine_similarity' in results[model][difficulty]:
+            sims.append(results[model][difficulty]['genuine_similarity'])
         else:
             sims.append(0)
 
-    bars = ax.bar(x, sims, width, color=[THESIS_COLORS[m] for m in models], alpha=0.8, edgecolor='black', linewidth=1.2)
+    bars = ax.bar(x, sims, width, color=[THESIS_COLORS[m] for m in models],
+                  alpha=0.8, edgecolor='black', linewidth=1.2)
     ax.set_ylabel('Cosine Similarity', fontsize=12)
     ax.set_title('(d) Genuine Pair Similarity', fontsize=13, fontweight='bold')
     ax.set_xticks(x)
@@ -231,16 +241,17 @@ def plot_main_results_2x2(results, output_dir):
         ax.text(bar.get_x() + bar.get_width()/2., height,
                f'{sim:.3f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
 
-    plt.suptitle('Face Verification Performance Comparison', fontsize=15, fontweight='bold', y=0.995)
+    plt.suptitle(f'Face Verification Performance Comparison ({difficulty.capitalize()} Test Set)',
+                 fontsize=15, fontweight='bold', y=0.995)
     plt.tight_layout()
 
-    output_path = os.path.join(output_dir, 'thesis_main_results.png')
+    output_path = os.path.join(output_dir, f'thesis_main_results_{difficulty}.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"  Saved: {output_path}")
     plt.close()
 
 
-def plot_quality_verification_tradeoff(results, output_dir):
+def plot_quality_verification_tradeoff(results, output_dir, difficulty='mixed'):
     """Plot Pareto frontier: PSNR vs. EER trade-off"""
     models = ['baseline', 'face_loss3', 'face_loss5']
 
@@ -249,13 +260,12 @@ def plot_quality_verification_tradeoff(results, output_dir):
     psnr_values = []
     eer_values = []
     fr_weights = []
-    colors = []
 
     for model in models:
-        if model in results:
-            if 'psnr' in results[model] and 'eer' in results[model]:
-                psnr_values.append(results[model]['psnr'])
-                eer_values.append(results[model]['eer'])
+        if model in results and difficulty in results[model]:
+            if 'psnr' in results[model][difficulty] and 'eer' in results[model][difficulty]:
+                psnr_values.append(results[model][difficulty]['psnr'])
+                eer_values.append(results[model][difficulty]['eer'])
 
                 if model == 'baseline':
                     fr_weights.append(0.0)
@@ -263,8 +273,6 @@ def plot_quality_verification_tradeoff(results, output_dir):
                     fr_weights.append(0.3)
                 else:
                     fr_weights.append(0.5)
-
-                colors.append(THESIS_COLORS[model])
 
     # Create scatter plot
     scatter = ax.scatter(psnr_values, eer_values, c=fr_weights, s=200,
@@ -288,13 +296,13 @@ def plot_quality_verification_tradeoff(results, output_dir):
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, 'thesis_tradeoff_analysis.png')
+    output_path = os.path.join(output_dir, f'thesis_tradeoff_analysis_{difficulty}.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"  Saved: {output_path}")
     plt.close()
 
 
-def plot_comprehensive_summary(results, output_dir):
+def plot_comprehensive_summary(results, output_dir, difficulty='mixed'):
     """Create comprehensive summary with multiple subplots"""
     models = ['baseline', 'face_loss3', 'face_loss5']
 
@@ -303,7 +311,8 @@ def plot_comprehensive_summary(results, output_dir):
 
     # (a) EER
     ax1 = fig.add_subplot(gs[0, 0])
-    eers = [results[m]['eer'] if m in results and 'eer' in results[m] else 0 for m in models]
+    eers = [results[m][difficulty]['eer'] if m in results and difficulty in results[m] and 'eer' in results[m][difficulty] else 0
+            for m in models]
     bars = ax1.bar(range(len(models)), eers, color=[THESIS_COLORS[m] for m in models],
                   alpha=0.8, edgecolor='black', linewidth=1.2)
     ax1.set_ylabel('EER (%)')
@@ -318,7 +327,8 @@ def plot_comprehensive_summary(results, output_dir):
 
     # (b) TAR @ FAR = 1%
     ax2 = fig.add_subplot(gs[0, 1])
-    tars = [results[m]['tar_01'] if m in results and 'tar_01' in results[m] else 0 for m in models]
+    tars = [results[m][difficulty]['tar_01'] if m in results and difficulty in results[m] and 'tar_01' in results[m][difficulty] else 0
+            for m in models]
     bars = ax2.bar(range(len(models)), tars, color=[THESIS_COLORS[m] for m in models],
                   alpha=0.8, edgecolor='black', linewidth=1.2)
     ax2.set_ylabel('TAR (%)')
@@ -334,7 +344,7 @@ def plot_comprehensive_summary(results, output_dir):
 
     # (c) Genuine Similarity
     ax3 = fig.add_subplot(gs[0, 2])
-    sims = [results[m]['genuine_similarity'] if m in results and 'genuine_similarity' in results[m] else 0
+    sims = [results[m][difficulty]['genuine_similarity'] if m in results and difficulty in results[m] and 'genuine_similarity' in results[m][difficulty] else 0
             for m in models]
     bars = ax3.bar(range(len(models)), sims, color=[THESIS_COLORS[m] for m in models],
                   alpha=0.8, edgecolor='black', linewidth=1.2)
@@ -351,7 +361,8 @@ def plot_comprehensive_summary(results, output_dir):
 
     # (d) PSNR
     ax4 = fig.add_subplot(gs[1, 0])
-    psnrs = [results[m]['psnr'] if m in results and 'psnr' in results[m] else 0 for m in models]
+    psnrs = [results[m][difficulty]['psnr'] if m in results and difficulty in results[m] and 'psnr' in results[m][difficulty] else 0
+             for m in models]
     bars = ax4.bar(range(len(models)), psnrs, color=[THESIS_COLORS[m] for m in models],
                   alpha=0.8, edgecolor='black', linewidth=1.2)
     ax4.set_ylabel('PSNR (dB)')
@@ -366,7 +377,8 @@ def plot_comprehensive_summary(results, output_dir):
 
     # (e) SSIM
     ax5 = fig.add_subplot(gs[1, 1])
-    ssims = [results[m]['ssim'] if m in results and 'ssim' in results[m] else 0 for m in models]
+    ssims = [results[m][difficulty]['ssim'] if m in results and difficulty in results[m] and 'ssim' in results[m][difficulty] else 0
+             for m in models]
     bars = ax5.bar(range(len(models)), ssims, color=[THESIS_COLORS[m] for m in models],
                   alpha=0.8, edgecolor='black', linewidth=1.2)
     ax5.set_ylabel('SSIM')
@@ -382,8 +394,9 @@ def plot_comprehensive_summary(results, output_dir):
 
     # (f) Trade-off: PSNR vs EER
     ax6 = fig.add_subplot(gs[1, 2])
-    valid_data = [(results[m]['psnr'], results[m]['eer']) for m in models
-                 if m in results and 'psnr' in results[m] and 'eer' in results[m]]
+    valid_data = [(results[m][difficulty]['psnr'], results[m][difficulty]['eer'])
+                  for m in models
+                  if m in results and difficulty in results[m] and 'psnr' in results[m][difficulty] and 'eer' in results[m][difficulty]]
     if valid_data:
         psnr_vals, eer_vals = zip(*valid_data)
         fr_weights = [0.0, 0.3, 0.5][:len(psnr_vals)]
@@ -399,9 +412,9 @@ def plot_comprehensive_summary(results, output_dir):
     ax6.set_title('(f) Quality-Verification Trade-off', fontweight='bold')
     ax6.grid(True, alpha=0.3)
 
-    fig.suptitle('Comprehensive Results Summary', fontsize=16, fontweight='bold')
+    fig.suptitle(f'Comprehensive Results Summary ({difficulty.capitalize()} Test Set)', fontsize=16, fontweight='bold')
 
-    output_path = os.path.join(output_dir, 'thesis_comprehensive_summary.png')
+    output_path = os.path.join(output_dir, f'thesis_comprehensive_summary_{difficulty}.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"  Saved: {output_path}")
     plt.close()
@@ -409,64 +422,55 @@ def plot_comprehensive_summary(results, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate thesis summary figures')
-    parser.add_argument('--results_dir', type=str, default='./results/multilevel_evaluations',
-                       help='Directory containing evaluation results')
+    parser.add_argument('--eval_log', type=str, default='./face_eval.log',
+                       help='Path to face evaluation log file')
     parser.add_argument('--output_dir', type=str, default='./figures/thesis',
                        help='Output directory for thesis figures')
-    parser.add_argument('--figure_type', type=str, default='all',
-                       choices=['all', 'main_results', 'tradeoff', 'comprehensive'],
-                       help='Type of figure to generate')
+    parser.add_argument('--difficulty', type=str, default='mixed',
+                       choices=['easy', 'medium', 'hard', 'mixed'],
+                       help='Difficulty level to plot')
 
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    print("="*70)
+    print("=" * 70)
     print("Thesis Summary Figure Generator")
-    print("="*70)
-    print(f"Results directory: {args.results_dir}")
+    print("=" * 70)
+    print(f"Eval log:         {args.eval_log}")
     print(f"Output directory:  {args.output_dir}")
-    print(f"Figure type:       {args.figure_type}")
+    print(f"Difficulty:       {args.difficulty}")
     print()
 
-    # Load results
-    results = load_results(args.results_dir)
+    # Load results from log
+    results = parse_face_eval_log(args.eval_log)
 
     if not results:
-        print("No evaluation results found!")
-        print(f"  Looking for: {args.results_dir}/<model>/face_verification_results.txt")
+        print("No evaluation results found in log!")
+        print("  Make sure face_eval.log exists and contains evaluation results.")
         return 1
 
     print(f"Found results for {len(results)} model(s):")
     for model_name in sorted(results.keys()):
-        if results[model_name]:
-            print(f"  - {model_name}")
+        difficulties = list(results[model_name].keys())
+        print(f"  - {model_name}: {difficulties}")
     print()
 
     # Generate figures
     print("Generating thesis figures...")
-
-    if args.figure_type in ['all', 'main_results']:
-        print("  Generating main results (2x2)...")
-        plot_main_results_2x2(results, args.output_dir)
-
-    if args.figure_type in ['all', 'tradeoff']:
-        print("  Generating trade-off analysis...")
-        plot_quality_verification_tradeoff(results, args.output_dir)
-
-    if args.figure_type in ['all', 'comprehensive']:
-        print("  Generating comprehensive summary...")
-        plot_comprehensive_summary(results, args.output_dir)
+    plot_main_results_2x2(results, args.output_dir, args.difficulty)
+    plot_quality_verification_tradeoff(results, args.output_dir, args.difficulty)
+    plot_comprehensive_summary(results, args.output_dir, args.difficulty)
 
     print()
-    print("="*70)
+    print("=" * 70)
     print("Thesis figures generated successfully!")
-    print("="*70)
+    print("=" * 70)
     print(f"\nFigures saved to: {args.output_dir}")
-    print("\nThese figures are ready for inclusion in your thesis:")
-    print("  - thesis_main_results.png: Main 2x2 results figure")
-    print("  - thesis_tradeoff_analysis.png: Pareto frontier analysis")
-    print("  - thesis_comprehensive_summary.png: Complete results summary")
+    print("\nGenerated figures:")
+    print(f"  - thesis_main_results_{args.difficulty}.png: Main 2x2 results figure")
+    print(f"  - thesis_tradeoff_analysis_{args.difficulty}.png: Pareto frontier analysis")
+    print(f"  - thesis_comprehensive_summary_{args.difficulty}.png: Complete results summary")
     print("\nAll figures are 300 DPI for publication quality.")
 
     return 0

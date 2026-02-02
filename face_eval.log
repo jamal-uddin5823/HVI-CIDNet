@@ -1,0 +1,794 @@
+
+[0;34m[STEP 4] Evaluating Models on All Difficulty Levels...[0m
+
+[0;32m[Mon Feb  2 09:47:27 AM UTC 2026] Evaluating: baseline on easy[0m
+[1;33mModel: ./weights/multilevel/baseline/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_easy[0m
+
+Loading enhancement model from ./weights/multilevel/baseline/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_easy/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.5648 ± 0.0855
+  Enhanced:   0.9978 ± 0.0013
+  Improvement: 0.4330
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.5524 ± 0.0883
+  Enhanced:   0.6677 ± 0.0996
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  45.35% (threshold=0.545)
+    Enhanced:   0.00% (threshold=0.899)
+    Improvement: 45.35%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.10%
+    Enhanced:   100.00%
+    Improvement: 99.90%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.10%
+    Enhanced:   100.00%
+    Improvement: 98.90%
+
+Image Quality:
+  PSNR: 36.06 dB
+  SSIM: 0.9718
+
+Results saved to: results/multilevel_evaluations/baseline/easy/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/baseline/easy/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 09:50:23 AM UTC 2026] Evaluation completed: baseline on easy[0m
+
+[0;32m[Mon Feb  2 09:50:23 AM UTC 2026] Evaluating: baseline on medium[0m
+[1;33mModel: ./weights/multilevel/baseline/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_medium[0m
+
+Loading enhancement model from ./weights/multilevel/baseline/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_medium/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.3485 ± 0.1729
+  Enhanced:   0.9519 ± 0.0238
+  Improvement: 0.6034
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.3366 ± 0.1751
+  Enhanced:   0.6194 ± 0.1351
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  48.95% (threshold=0.323)
+    Enhanced:   0.65% (threshold=0.859)
+    Improvement: 48.30%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.20%
+    Enhanced:   96.40%
+    Improvement: 96.20%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.30%
+    Enhanced:   99.60%
+    Improvement: 98.30%
+
+Image Quality:
+  PSNR: 23.79 dB
+  SSIM: 0.7586
+
+Results saved to: results/multilevel_evaluations/baseline/medium/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/baseline/medium/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 09:53:20 AM UTC 2026] Evaluation completed: baseline on medium[0m
+
+[0;32m[Mon Feb  2 09:53:20 AM UTC 2026] Evaluating: baseline on hard[0m
+[1;33mModel: ./weights/multilevel/baseline/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_hard[0m
+
+Loading enhancement model from ./weights/multilevel/baseline/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_hard/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.6215 ± 0.1455
+  Enhanced:   0.9377 ± 0.0346
+  Improvement: 0.3162
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.5859 ± 0.1494
+  Enhanced:   0.5721 ± 0.1169
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  44.95% (threshold=0.616)
+    Enhanced:   1.00% (threshold=0.808)
+    Improvement: 43.95%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.20%
+    Enhanced:   98.30%
+    Improvement: 98.10%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.40%
+    Enhanced:   99.10%
+    Improvement: 97.70%
+
+Image Quality:
+  PSNR: 22.72 dB
+  SSIM: 0.7611
+
+Results saved to: results/multilevel_evaluations/baseline/hard/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/baseline/hard/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 09:56:15 AM UTC 2026] Evaluation completed: baseline on hard[0m
+
+[0;32m[Mon Feb  2 09:56:15 AM UTC 2026] Evaluating: baseline on mixed[0m
+[1;33mModel: ./weights/multilevel/baseline/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_mixed[0m
+
+Loading enhancement model from ./weights/multilevel/baseline/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_mixed/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.4842 ± 0.1373
+  Enhanced:   0.9715 ± 0.0252
+  Improvement: 0.4874
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.4700 ± 0.1405
+  Enhanced:   0.6830 ± 0.1141
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  47.50% (threshold=0.465)
+    Enhanced:   1.00% (threshold=0.889)
+    Improvement: 46.50%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.20%
+    Enhanced:   96.70%
+    Improvement: 96.50%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.40%
+    Enhanced:   99.10%
+    Improvement: 97.70%
+
+Image Quality:
+  PSNR: 27.41 dB
+  SSIM: 0.8262
+
+Results saved to: results/multilevel_evaluations/baseline/mixed/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/baseline/mixed/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 09:59:11 AM UTC 2026] Evaluation completed: baseline on mixed[0m
+
+[0;32m[Mon Feb  2 09:59:11 AM UTC 2026] Evaluating: face_loss3 on easy[0m
+[1;33mModel: ./weights/multilevel/face_loss3/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_easy[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss3/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_easy/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.4431 ± 0.1765
+  Enhanced:   0.9973 ± 0.0015
+  Improvement: 0.5542
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.4234 ± 0.1836
+  Enhanced:   0.6177 ± 0.1250
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  47.60% (threshold=0.434)
+    Enhanced:   0.00% (threshold=0.899)
+    Improvement: 47.60%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.20%
+    Enhanced:   100.00%
+    Improvement: 99.80%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.00%
+    Enhanced:   100.00%
+    Improvement: 99.00%
+
+Image Quality:
+  PSNR: 35.76 dB
+  SSIM: 0.9690
+
+Results saved to: results/multilevel_evaluations/face_loss3/easy/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss3/easy/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:02:06 AM UTC 2026] Evaluation completed: face_loss3 on easy[0m
+
+[0;32m[Mon Feb  2 10:02:06 AM UTC 2026] Evaluating: face_loss3 on medium[0m
+[1;33mModel: ./weights/multilevel/face_loss3/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_medium[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss3/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_medium/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.4805 ± 0.1666
+  Enhanced:   0.9485 ± 0.0250
+  Improvement: 0.4679
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.4663 ± 0.1687
+  Enhanced:   0.5512 ± 0.1337
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  48.70% (threshold=0.475)
+    Enhanced:   0.40% (threshold=0.838)
+    Improvement: 48.30%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.10%
+    Enhanced:   99.30%
+    Improvement: 99.20%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.40%
+    Enhanced:   99.80%
+    Improvement: 98.40%
+
+Image Quality:
+  PSNR: 23.83 dB
+  SSIM: 0.7471
+
+Results saved to: results/multilevel_evaluations/face_loss3/medium/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss3/medium/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:05:02 AM UTC 2026] Evaluation completed: face_loss3 on medium[0m
+
+[0;32m[Mon Feb  2 10:05:02 AM UTC 2026] Evaluating: face_loss3 on hard[0m
+[1;33mModel: ./weights/multilevel/face_loss3/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_hard[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss3/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_hard/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.4512 ± 0.1716
+  Enhanced:   0.9468 ± 0.0279
+  Improvement: 0.4956
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.4193 ± 0.1718
+  Enhanced:   0.5818 ± 0.1340
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  46.45% (threshold=0.424)
+    Enhanced:   0.75% (threshold=0.838)
+    Improvement: 45.70%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.10%
+    Enhanced:   98.10%
+    Improvement: 98.00%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.10%
+    Enhanced:   99.40%
+    Improvement: 98.30%
+
+Image Quality:
+  PSNR: 23.44 dB
+  SSIM: 0.7562
+
+Results saved to: results/multilevel_evaluations/face_loss3/hard/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss3/hard/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:07:58 AM UTC 2026] Evaluation completed: face_loss3 on hard[0m
+
+[0;32m[Mon Feb  2 10:07:58 AM UTC 2026] Evaluating: face_loss3 on mixed[0m
+[1;33mModel: ./weights/multilevel/face_loss3/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_mixed[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss3/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_mixed/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.5167 ± 0.1793
+  Enhanced:   0.9733 ± 0.0244
+  Improvement: 0.4567
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.5027 ± 0.1817
+  Enhanced:   0.6634 ± 0.1302
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  47.70% (threshold=0.505)
+    Enhanced:   0.75% (threshold=0.899)
+    Improvement: 46.95%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.20%
+    Enhanced:   96.00%
+    Improvement: 95.80%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.50%
+    Enhanced:   99.40%
+    Improvement: 97.90%
+
+Image Quality:
+  PSNR: 27.58 dB
+  SSIM: 0.8197
+
+Results saved to: results/multilevel_evaluations/face_loss3/mixed/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss3/mixed/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:10:53 AM UTC 2026] Evaluation completed: face_loss3 on mixed[0m
+
+[0;32m[Mon Feb  2 10:10:53 AM UTC 2026] Evaluating: face_loss5 on easy[0m
+[1;33mModel: ./weights/multilevel/face_loss5/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_easy[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss5/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_easy/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.4289 ± 0.1778
+  Enhanced:   0.9975 ± 0.0014
+  Improvement: 0.5686
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.4088 ± 0.1822
+  Enhanced:   0.5299 ± 0.1321
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  47.90% (threshold=0.424)
+    Enhanced:   0.00% (threshold=0.848)
+    Improvement: 47.90%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.10%
+    Enhanced:   100.00%
+    Improvement: 99.90%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.30%
+    Enhanced:   100.00%
+    Improvement: 98.70%
+
+Image Quality:
+  PSNR: 36.14 dB
+  SSIM: 0.9721
+
+Results saved to: results/multilevel_evaluations/face_loss5/easy/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss5/easy/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:13:50 AM UTC 2026] Evaluation completed: face_loss5 on easy[0m
+
+[0;32m[Mon Feb  2 10:13:50 AM UTC 2026] Evaluating: face_loss5 on medium[0m
+[1;33mModel: ./weights/multilevel/face_loss5/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_medium[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss5/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_medium/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.5082 ± 0.1531
+  Enhanced:   0.9675 ± 0.0134
+  Improvement: 0.4593
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.4913 ± 0.1588
+  Enhanced:   0.6735 ± 0.1211
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  47.50% (threshold=0.495)
+    Enhanced:   0.25% (threshold=0.899)
+    Improvement: 47.25%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.10%
+    Enhanced:   99.60%
+    Improvement: 99.50%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.20%
+    Enhanced:   100.00%
+    Improvement: 98.80%
+
+Image Quality:
+  PSNR: 24.08 dB
+  SSIM: 0.7272
+
+Results saved to: results/multilevel_evaluations/face_loss5/medium/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss5/medium/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:16:44 AM UTC 2026] Evaluation completed: face_loss5 on medium[0m
+
+[0;32m[Mon Feb  2 10:16:44 AM UTC 2026] Evaluating: face_loss5 on hard[0m
+[1;33mModel: ./weights/multilevel/face_loss5/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_hard[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss5/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_hard/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.5683 ± 0.1835
+  Enhanced:   0.9604 ± 0.0202
+  Improvement: 0.3921
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.5331 ± 0.1871
+  Enhanced:   0.5804 ± 0.1353
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  45.80% (threshold=0.556)
+    Enhanced:   0.55% (threshold=0.869)
+    Improvement: 45.25%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.10%
+    Enhanced:   98.50%
+    Improvement: 98.40%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.30%
+    Enhanced:   99.70%
+    Improvement: 98.40%
+
+Image Quality:
+  PSNR: 23.68 dB
+  SSIM: 0.7285
+
+Results saved to: results/multilevel_evaluations/face_loss5/hard/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss5/hard/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:19:39 AM UTC 2026] Evaluation completed: face_loss5 on hard[0m
+
+[0;32m[Mon Feb  2 10:19:39 AM UTC 2026] Evaluating: face_loss5 on mixed[0m
+[1;33mModel: ./weights/multilevel/face_loss5/epoch_70.pth[0m
+[1;33mTest set: ./datasets/LFW_multilevel/test_mixed[0m
+
+Loading enhancement model from ./weights/multilevel/face_loss5/epoch_70.pth...
+  ✓ Enhancement model loaded
+Loading face recognition model (ir_50)...
+  ✓ Loaded weights from ./weights/adaface/adaface_ir50_webface4m.ckpt
+
+[Using pairs-based verification protocol]
+This will properly evaluate genuine vs. impostor pairs
+
+======================================================================
+Face Verification Evaluation (Pairs Protocol)
+======================================================================
+
+Loading pairs from: ./datasets/LFW_multilevel/test_mixed/pairs.txt
+Loaded 2000 pairs
+  Genuine pairs (same person):  1000
+  Impostor pairs (different):   1000
+
+Evaluating genuine pairs (same person)...
+
+Evaluating impostor pairs (different people)...
+
+======================================================================
+Verification Metrics
+======================================================================
+
+Genuine Pair Scores (same person - should be HIGH):
+  Low-light:  0.3266 ± 0.1964
+  Enhanced:   0.9755 ± 0.0200
+  Improvement: 0.6489
+
+Impostor Pair Scores (different people - should be LOW):
+  Low-light:  0.3144 ± 0.2000
+  Enhanced:   0.6107 ± 0.1478
+
+Verification Performance:
+  Equal Error Rate (EER):
+    Low-light:  48.25% (threshold=0.293)
+    Enhanced:   0.35% (threshold=0.899)
+    Improvement: 47.90%
+
+  True Accept Rate (TAR) @ FAR=0.1%:
+    Low-light:  0.20%
+    Enhanced:   95.50%
+    Improvement: 95.30%
+
+  True Accept Rate (TAR) @ FAR=1%:
+    Low-light:  1.40%
+    Enhanced:   100.00%
+    Improvement: 98.60%
+
+Image Quality:
+  PSNR: 27.88 dB
+  SSIM: 0.8048
+
+Results saved to: results/multilevel_evaluations/face_loss5/mixed/face_verification_results.txt
+JSON scores saved to: results/multilevel_evaluations/face_loss5/mixed/verification_scores.json
+
+======================================================================
+Evaluation complete!
+======================================================================
+[0;32m[Mon Feb  2 10:22:35 AM UTC 2026] Evaluation completed: face_loss5 on mixed[0m
