@@ -19,7 +19,7 @@ def generate_figure1():
     # ROW 1: Example Images
     # ==============================================================
     # Choose a person with images at all difficulties
-    person = 'George_W_Bush'  # Adjust based on available data
+    person = 'Ben_Affleck'  # Adjust based on available data
     image_num = '0001'
 
     base_dir = 'datasets/LFW_multilevel'
@@ -29,9 +29,9 @@ def generate_figure1():
     titles = ['Original (GT)', 'Easy (1% light)', 'Medium (5% light)', 'Hard (10% light)']
     paths = [
         f'{base_dir}/test_easy/high/{person}/{person}_{image_num}_easy_easy.png',  # Original (GT)
-        f'{base_dir}/test_easy/low/{person}/{person}_{image_num}_easy_easy.png',
-        f'{base_dir}/test_medium/low/{person}/{person}_{image_num}_medium_medium.png',
-        f'{base_dir}/test_hard/low/{person}/{person}_{image_num}_hard_hard.png'
+        f'{base_dir}/test_easy/low/{person}/{person}_{image_num}_easy.png',
+        f'{base_dir}/test_medium/low/{person}/{person}_{image_num}_medium.png',
+        f'{base_dir}/test_hard/low/{person}/{person}_{image_num}_hard.png'
     ]
 
     for i, (path, title) in enumerate(zip(paths, titles)):

@@ -40,12 +40,12 @@ python generate_figure9_distributions.py
 echo "[10/11] Generating Figure 10: Enhancement impact..."
 python generate_figure10_baseline_comparison.py
 
-echo "[11/11] Generating visual comparison figures..."
+echo "[11/11] Generating visual comparison figures (with model inference)..."
 echo "  - Enhanced comparison (single face, all difficulties)..."
-python generate_figure_enhanced_comparison.py
+python generate_enhanced_comparison_with_inference.py checkpoints
 
 echo "  - Enhanced gallery (multiple faces, medium difficulty)..."
-python generate_figure_enhanced_gallery.py medium
+python generate_enhanced_gallery_with_inference.py checkpoints medium
 
 echo "========================================================================"
 echo "All figures generated successfully!"
@@ -63,8 +63,8 @@ echo "  - figure7_quality_tradeoff.pdf/png"
 echo "  - figure8_roc_curves.pdf/png"
 echo "  - figure9_score_distributions.pdf/png"
 echo "  - figure10_enhancement_impact.pdf/png"
-echo "  - figure_enhanced_comparison.pdf/png"
-echo "  - figure_enhanced_gallery_medium.pdf/png"
+echo "  - figure_enhanced_comparison_inference.pdf/png"
+echo "  - figure_enhanced_gallery_medium_inference.pdf/png"
 echo ""
 echo "Mermaid diagrams (render separately):"
 echo "  - figure2_loss_architecture.mmd"
