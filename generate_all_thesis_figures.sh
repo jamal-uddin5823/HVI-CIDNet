@@ -42,10 +42,10 @@ python generate_figure10_baseline_comparison.py
 
 echo "[11/11] Generating visual comparison figures (with model inference)..."
 echo "  - Enhanced comparison (single face, all difficulties)..."
-python generate_enhanced_comparison_with_inference.py checkpoints
+python generate_enhanced_comparison_with_inference.py weights
 
 echo "  - Enhanced gallery (multiple faces, medium difficulty)..."
-python generate_enhanced_gallery_with_inference.py checkpoints medium
+python generate_enhanced_gallery_with_inference.py weights medium
 
 echo "========================================================================"
 echo "All figures generated successfully!"

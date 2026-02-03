@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def load_model(checkpoint_path, device='cuda'):
     """Load a trained model from checkpoint"""
-    from model import CIDNet
+    from net.CIDNet import CIDNet
 
     model = CIDNet().to(device)
 
@@ -249,24 +249,20 @@ if __name__ == '__main__':
 
     difficulty = 'medium'  # Default
 
-    # Parse arguments
+    # Parse arguments: <checkpoint_dir> <difficulty>
     if len(sys.argv) >= 2:
-        # First arg could be difficulty or checkpoint dir
-        if sys.argv[1] in ['easy', 'medium', 'hard', 'mixed']:
-            difficulty = sys.argv[1]
-        else:
-            # Assume it's checkpoint directory
-            ckpt_dir = sys.argv[1]
-            checkpoint_paths = {
-                'baseline': f'{ckpt_dir}/baseline/best_model.pth',
-                'face_loss3': f'{ckpt_dir}/face_loss3/best_model.pth',
-                'face_loss5': f'{ckpt_dir}/face_loss5/best_model.pth'
-            }
+        ckpt_dir = sys.argv[1]
+        checkpoint_paths = {
+            'baseline': f'{ckpt_dir}/multilevel/baseline/epoch_40.pth',
+            'face_loss3': f'{ckpt_dir}/multilevel/face_loss3/epoch_40.pth',
+            'face_loss5': f'{ckpt_dir}/multilevel/face_loss5/epoch_40.pth'
+        }
 
     if len(sys.argv) >= 3:
-        # Second arg is difficulty
         if sys.argv[2] in ['easy', 'medium', 'hard', 'mixed']:
             difficulty = sys.argv[2]
+        else:
+            print(f"WARNING: Invalid difficulty '{sys.argv[2]}', using default 'medium'")
 
     # Check checkpoints
     found_any = False
@@ -284,8 +280,7 @@ if __name__ == '__main__':
         print("\nPlease specify the checkpoint directory:")
         print(f"  python {sys.argv[0]} <checkpoint_directory> <difficulty>")
         print("\nExample:")
-        print(f"  python {sys.argv[0]} checkpoints medium")
-        print(f"  python {sys.argv[0]} medium  # (uses default checkpoint path)")
+        print(f"  python {sys.argv[0]} weights medium")
         sys.exit(1)
 
     # Generate gallery

@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def load_model(checkpoint_path, device='cuda'):
     """Load a trained model from checkpoint"""
-    from model import CIDNet  # Import your model architecture
+    from net.CIDNet import CIDNet  # Import your model architecture
 
     model = CIDNet().to(device)
 
