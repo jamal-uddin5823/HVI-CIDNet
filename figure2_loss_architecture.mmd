@@ -1,0 +1,43 @@
+graph TD
+    A[Low-light Image] --> B[CIDNet Enhancement Model]
+    B --> C[Enhanced Image]
+
+    C --> D[AdaFace IR-50<br/>Frozen Face Recognizer]
+    E[Ground Truth Image] --> D
+    F[Impostor Image<br/>Different Person] --> D
+
+    D --> G1[Multi-Level Features]
+    G1 --> G2[layer2 w=0.2]
+    G1 --> G3[layer3 w=0.4]
+    G1 --> G4[layer4 w=0.8]
+    G1 --> G5[fc w=1.0]
+
+    G2 --> H1[Component 1:<br/>Reconstruction Loss]
+    G3 --> H1
+    G4 --> H1
+    G5 --> H1
+
+    H1 -.->|L_recon = Σ w_i × 1 - cos_sim| I[Total Face Loss]
+
+    G5 --> H2[Component 2:<br/>Contrastive Loss]
+    H2 -.->|L_contrast = -log exp_pos / exp_pos + exp_neg<br/>margin=0.4, temp=0.07| I
+
+    G5 --> H3[Component 3:<br/>Triplet Margin Loss]
+    H3 -.->|L_triplet = max0, d_ap - d_an + 0.2| I
+
+    I --> J[Final Loss]
+    K[L_RGB + L_HVI] --> J
+
+    J -.->|FR_weight × Total Face Loss| L[Backprop to CIDNet]
+
+    style A fill:#e1f5ff
+    style C fill:#c8e6c9
+    style D fill:#fff9c4
+    style H1 fill:#ffccbc
+    style H2 fill:#f8bbd0
+    style H3 fill:#d1c4e9
+    style I fill:#ffab91
+    style J fill:#ef9a9a
+
+    classDef lossComponent fill:#fff,stroke:#333,stroke-width:2px
+    class H1,H2,H3 lossComponent

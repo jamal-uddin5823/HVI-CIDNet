@@ -1,0 +1,116 @@
+{
+  "baseline": {
+    "easy": {
+      "eer": 0.0,
+      "tar_001": 100.0,
+      "tar_01": 100.0,
+      "genuine_similarity": 0.9978,
+      "psnr": 36.06,
+      "ssim": 0.9718,
+      "low_light_eer": 45.35
+    },
+    "medium": {
+      "eer": 0.65,
+      "tar_001": 96.4,
+      "tar_01": 99.6,
+      "genuine_similarity": 0.9519,
+      "psnr": 23.79,
+      "ssim": 0.7586,
+      "low_light_eer": 48.95
+    },
+    "hard": {
+      "eer": 1.0,
+      "tar_001": 98.3,
+      "tar_01": 99.1,
+      "genuine_similarity": 0.9377,
+      "psnr": 22.72,
+      "ssim": 0.7611,
+      "low_light_eer": 44.95
+    },
+    "mixed": {
+      "eer": 1.0,
+      "tar_001": 96.7,
+      "tar_01": 99.1,
+      "genuine_similarity": 0.9715,
+      "psnr": 27.41,
+      "ssim": 0.8262,
+      "low_light_eer": 47.5
+    }
+  },
+  "face_loss3": {
+    "easy": {
+      "eer": 0.0,
+      "tar_001": 100.0,
+      "tar_01": 100.0,
+      "genuine_similarity": 0.9973,
+      "psnr": 35.76,
+      "ssim": 0.969,
+      "low_light_eer": 47.6
+    },
+    "medium": {
+      "eer": 0.4,
+      "tar_001": 99.3,
+      "tar_01": 99.8,
+      "genuine_similarity": 0.9485,
+      "psnr": 23.83,
+      "ssim": 0.7471,
+      "low_light_eer": 48.7
+    },
+    "hard": {
+      "eer": 0.75,
+      "tar_001": 98.1,
+      "tar_01": 99.4,
+      "genuine_similarity": 0.9468,
+      "psnr": 23.44,
+      "ssim": 0.7562,
+      "low_light_eer": 46.45
+    },
+    "mixed": {
+      "eer": 0.75,
+      "tar_001": 96.0,
+      "tar_01": 99.4,
+      "genuine_similarity": 0.9733,
+      "psnr": 27.58,
+      "ssim": 0.8197,
+      "low_light_eer": 47.7
+    }
+  },
+  "face_loss5": {
+    "easy": {
+      "eer": 0.0,
+      "tar_001": 100.0,
+      "tar_01": 100.0,
+      "genuine_similarity": 0.9975,
+      "psnr": 36.14,
+      "ssim": 0.9721,
+      "low_light_eer": 47.9
+    },
+    "medium": {
+      "eer": 0.25,
+      "tar_001": 99.6,
+      "tar_01": 100.0,
+      "genuine_similarity": 0.9675,
+      "psnr": 24.08,
+      "ssim": 0.7272,
+      "low_light_eer": 47.5
+    },
+    "hard": {
+      "eer": 0.55,
+      "tar_001": 98.5,
+      "tar_01": 99.7,
+      "genuine_similarity": 0.9604,
+      "psnr": 23.68,
+      "ssim": 0.7285,
+      "low_light_eer": 45.8
+    },
+    "mixed": {
+      "eer": 0.35,
+      "tar_001": 95.5,
+      "tar_01": 100.0,
+      "genuine_similarity": 0.9755,
+      "psnr": 27.88,
+      "ssim": 0.8048,
+      "low_light_eer": 48.25
+    }
+  }
+}
