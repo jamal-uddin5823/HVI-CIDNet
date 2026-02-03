@@ -61,6 +61,9 @@ class NormUpsample(nn.Module):
             
     def forward(self, x,y):
         x = self.up_scale(x)
+        # Ensure spatial dimensions match before concatenation
+        if x.shape[2:] != y.shape[2:]:
+            x = F.interpolate(x, size=y.shape[2:], mode='bilinear', align_corners=False)
         x = torch.cat([x, y],dim=1)
         x = self.up(x)
         x = self.prelu(x)
