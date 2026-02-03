@@ -242,9 +242,9 @@ def generate_gallery_with_inference(
 if __name__ == '__main__':
     # Define checkpoint paths
     checkpoint_paths = {
-        'baseline': 'checkpoints/baseline/best_model.pth',
-        'face_loss3': 'checkpoints/face_loss3/best_model.pth',
-        'face_loss5': 'checkpoints/face_loss5/best_model.pth'
+        'baseline': 'weights/multilevel/baseline/epoch_40.pth',
+        'face_loss3': 'weights/multilevel/face_loss3/epoch_40.pth',
+        'face_loss5': 'weights/multilevel/face_loss5/epoch_40.pth'
     }
 
     difficulty = 'medium'  # Default
