@@ -28,7 +28,7 @@ def generate_figure1():
     images = []
     titles = ['Original (GT)', 'Easy (1% light)', 'Medium (5% light)', 'Hard (10% light)']
     paths = [
-        f'{base_dir}/test_easy/high/{person}/{person}_{image_num}_easy_easy.png',  # Original (GT)
+        f'{base_dir}/test_easy/high/{person}/{person}_{image_num}_easy.png',  # Original (GT)
         f'{base_dir}/test_easy/low/{person}/{person}_{image_num}_easy.png',
         f'{base_dir}/test_medium/low/{person}/{person}_{image_num}_medium.png',
         f'{base_dir}/test_hard/low/{person}/{person}_{image_num}_hard.png'
