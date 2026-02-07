@@ -1,0 +1,39 @@
+flowchart LR
+    subgraph Dataset["Training Dataset"]
+        ID1[Identity 1<br/>5 images]
+        ID2[Identity 2<br/>8 images]
+        ID3[Identity 3<br/>3 images]
+        IDN[Identity N<br/>6 images]
+    end
+
+    subgraph Sampler["Identity-Balanced Sampler"]
+        SELECT[Select N_id=4<br/>Identities]
+        SAMPLE[Sample M=2<br/>Images per ID]
+        BATCH[Construct Batch<br/>4×2 = 8 images]
+    end
+
+    subgraph MiniBatch["Mini-Batch Composition"]
+        B1[ID_a: img1, img2]
+        B2[ID_b: img1, img2]
+        B3[ID_c: img1, img2]
+        B4[ID_d: img1, img2]
+    end
+
+    ID1 --> SELECT
+    ID2 --> SELECT
+    ID3 --> SELECT
+    IDN --> SELECT
+    SELECT --> SAMPLE
+    SAMPLE --> BATCH
+    BATCH --> B1
+    BATCH --> B2
+    BATCH --> B3
+    BATCH --> B4
+
+    B1 -.->|Positive Pairs| B1
+    B1 -.->|Negative Pairs| B2
+    B1 -.->|Negative Pairs| B3
+    B1 -.->|Negative Pairs| B4
+
+    style BATCH fill:#e1ffe1
+    style SELECT fill:#ffe1e1

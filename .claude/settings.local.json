@@ -3,7 +3,8 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(dir \"D:\\\\Prog_Stuffs\\\\Thesis\\\\code\")",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "WebSearch"
     ]
   },
   "outputStyle": "default"

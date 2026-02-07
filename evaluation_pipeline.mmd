@@ -1,0 +1,38 @@
+flowchart TB
+    subgraph Input["Test Set"]
+        TEST[Multi-Level Test Set<br/>Easy/Medium/Hard/Mixed]
+        PAIRS[6,000 Pairs<br/>3,000 Genuine + 3,000 Impostor]
+    end
+
+    subgraph Enhancement["Enhancement Stage"]
+        LOW[Low-Light Image]
+        CID[HVI-CIDNet]
+        ENH[Enhanced Image]
+    end
+
+    subgraph Recognition["Feature Extraction"]
+        ADA[AdaFace IR-50]
+        EMB[512-D Embedding<br/>L2-Normalized]
+    end
+
+    subgraph Metrics["Verification Metrics"]
+        SIM[Cosine Similarity]
+        EER[Equal Error Rate]
+        TAR[TAR @ 0.1% / 1% FAR]
+        QUAL[PSNR / SSIM]
+    end
+
+    TEST --> PAIRS
+    PAIRS --> LOW
+    LOW --> CID
+    CID --> ENH
+    ENH --> ADA
+    ADA --> EMB
+    EMB --> SIM
+    SIM --> EER
+    SIM --> TAR
+    ENH --> QUAL
+
+    style CID fill:#e1f5ff
+    style ADA fill:#ffe1e1
+    style EER fill:#e1ffe1

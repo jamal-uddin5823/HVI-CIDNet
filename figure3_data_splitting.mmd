@@ -1,34 +1,36 @@
 graph TD
-    A[LFW Original Dataset<br/>~1,680 people, ~13,000 images] --> B{Person-Based Split<br/>seed=42}
+    A[LFW Original Dataset<br/>~1,680 people, ~13,000 images]
+    A --> B{Person-Based Split<br/>seed=42}
 
-    B -->|70%| C[Train Set<br/>~1,176 people]
-    B -->|15%| D[Validation Set<br/>~252 people]
-    B -->|15%| E[Test Set<br/>~252 people]
+    B -->|70% Train| C[Train Set: ~1,176 people]
+    C --> C1[train_easy: 1% light reduction]
+    C1 --> C2[train_medium: 5% light reduction]
+    C2 --> C3[train_hard: 10% light reduction]
+    C3 --> C4[train_mixed: All levels combined]
 
-    C --> C1[train_easy<br/>1% light reduction]
-    C --> C2[train_medium<br/>5% light reduction]
-    C --> C3[train_hard<br/>10% light reduction]
-    C --> C4[train_mixed<br/>All levels combined]
-
+    B -->|15% Validation| D[Validation Set: ~252 people]
     D --> D1[val_easy]
-    D --> D2[val_medium]
-    D --> D3[val_hard]
-    D --> D4[val_mixed]
+    D1 --> D2[val_medium]
+    D2 --> D3[val_hard]
+    D3 --> D4[val_mixed]
 
-    E --> E1[test_easy<br/>+ pairs.txt]
-    E --> E2[test_medium<br/>+ pairs.txt]
-    E --> E3[test_hard<br/>+ pairs.txt]
-    E --> E4[test_mixed<br/>+ pairs.txt]
+    B -->|15% Test| E[Test Set: ~252 people]
+    E --> E1[test_easy + pairs.txt]
+    E1 --> E2[test_medium + pairs.txt]
+    E2 --> E3[test_hard + pairs.txt]
+    E3 --> E4[test_mixed + pairs.txt]
 
-    C1 -.->|Example| F[Ben_Affleck/<br/>Ben_Affleck_0001_easy.png<br/>Ben_Affleck_0002_easy.png]
+    C1 -.->|Example Structure| F[George_W_Bush/<br/>George_W_Bush_0001_easy.png<br/>George_W_Bush_0002_easy.png]
 
-    style A fill:#1e4868
-    style B fill:#617318
-    style C fill:#625813
-    style D fill:#702e15
-    style E fill:#62172f
-    style C4 fill:#2d5866,stroke:#2e7d32,stroke-width:3px
-    style F fill:#071707
+    style A fill:#e3f2fd
+    style B fill:#fff9c4
+    style C fill:#c8e6c9
+    style D fill:#ffe0b2
+    style E fill:#f8bbd0
+    style C4 fill:#a5d6a7,stroke:#2e7d32,stroke-width:3px
+    style D4 fill:#ffcc80
+    style E4 fill:#f48fb1
+    style F fill:#f0f0f0
 
     classDef keyFeature fill:#ffeb3b,stroke:#f57c00,stroke-width:2px
     class B keyFeature

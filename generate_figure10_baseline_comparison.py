@@ -60,7 +60,7 @@ def generate_figure10():
                 fontsize=15, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(difficulty_labels, fontsize=11)
-    ax.legend(loc='upper left', frameon=True, fontsize=11)
+    ax.legend(loc='upper right', frameon=True, fontsize=11)
     ax.grid(True, axis='y', alpha=0.3, linestyle='--')
     ax.set_ylim(0, max(eer_lowlight) * 1.15)
 

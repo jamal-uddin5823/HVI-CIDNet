@@ -1,0 +1,60 @@
+%%{init: {"flowchart": {"rankSpacing": 25, "nodeSpacing": 40}}}%%
+flowchart TB
+    subgraph Row1[" "]
+        direction LR
+        subgraph Data[" "]
+            DATA_PAD[" "]
+            DS[LFW Dataset 13233 imgs]
+            SPLIT[Person Split 70-15-15]
+            SYNTH[Low-Light Synth E-M-H]
+            IBS[ID-Balanced Sampler 4x2]
+        end
+
+        subgraph Model[" "]
+            MODEL_PAD[" "]
+            ENC[HVI-CIDNet Dual-Path]
+            FR[Frozen AdaFace IR-50 Multi-Level]
+        end
+    end
+
+    subgraph Row2[" "]
+        direction LR
+        subgraph Loss[" "]
+            LOSS_PAD[" "]
+            REC[Reconstruction Loss Cosine]
+            CON[Contrastive Loss tau 0.07]
+            TRI[Triplet Loss m 0.2]
+            COMB[Combined Loss lambda_FR 0.3-0.5]
+        end
+
+        subgraph Opt[" "]
+            OPT_PAD[" "]
+            ADAM[Adam eta 1e-4]
+            SCHED[Cosine Anneal plus Warmup]
+            GRAD[Grad Accum 4 steps batch 8]
+        end
+    end
+
+    DS --> SPLIT
+    SPLIT --> SYNTH
+    SYNTH --> IBS
+    IBS --> ENC
+    ENC --> |Enhanced| FR
+    FR --> REC
+    FR --> CON
+    FR --> TRI
+    REC --> COMB
+    CON --> COMB
+    TRI --> COMB
+    COMB --> ADAM
+    ADAM --> SCHED
+    SCHED --> GRAD
+    GRAD --> |Backprop| ENC
+
+    style ENC fill:#e1f5ff
+    style FR fill:#ffe1e1
+    style COMB fill:#e1ffe1
+    style DATA_PAD fill:transparent,stroke:transparent
+    style MODEL_PAD fill:transparent,stroke:transparent
+    style LOSS_PAD fill:transparent,stroke:transparent
+    style OPT_PAD fill:transparent,stroke:transparent

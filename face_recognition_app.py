@@ -1,428 +1,625 @@
 """
-Gradio Face Recognition Demo App
+Gradio Face Recognition Demo Application
 
-A web interface for low-light face enhancement and face recognition demonstration.
-This app combines CIDNet enhancement with face recognition matching.
-
-Features:
-    - Low-light image enhancement using CIDNet
-    - Face recognition using AdaFace or InsightFace
-    - Face database matching with top-K results
-    - Multiple enhancement model weights support
-    - Adjustable enhancement parameters (gamma, alpha_s, alpha_i)
-
-Usage:
-    python face_recognition_app.py --port 7863 --device cuda
-
-Requirements:
-    - face_database.py: Face database management
-    - recognizers.py: Face recognizer wrappers
-    - net.CIDNet: Enhancement model
+This application provides three demonstration modes:
+1. Well-Lit Face Recognition - Test face recognition on well-lit images
+2. Low-Light Face Recognition - Enhancement + recognition pipeline
+3. Synthetic Low-Light Generation - Generate synthetic low-light images
 """
-
-import argparse
-import os
-import platform
-from pathlib import Path
 
 import gradio as gr
 import torch
 import torch.nn.functional as F
-import torchvision.transforms as transforms
+import numpy as np
+import cv2
 from PIL import Image
+import os
+from pathlib import Path
+from typing import List, Tuple, Optional
+import time
+import argparse
 
-from net.CIDNet import CIDNet
+# Import local modules
+from recognizers import FaceRecognizerFactory
 from face_database import FaceDatabase
-from recognizers import AdaFaceRecognizer, InsightFaceRecognizer, get_recognizer
+from net.CIDNet import CIDNet
+from data.lowlight_synthesis import synthesize_low_light_image
 
 
-# Global models (loaded at startup)
-enhancer = None
-recognizer = None
-face_db = None
-device = 'cuda'
-
-# Available weights
-available_weights = []
-
-# Face database path
-DEFAULT_DB_PATH = './face_database'
+# Global variables for models and database
+face_database = None
+enhancement_models = {}
+current_enhancement_model = None
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-def find_pth_files(directory):
-    """Find all .pth files in directory excluding train subdirectories"""
-    pth_files = []
-    for root, dirs, files in os.walk(directory):
-        if 'train' in root.split(os.sep):
+# ============================================================================
+# Utility Functions
+# ============================================================================
+
+def find_enhancement_weights(base_dir='weights'):
+    """Find all .pth files, excluding training checkpoints"""
+    weights = []
+    base_path = Path(base_dir)
+
+    if not base_path.exists():
+        return []
+
+    for root, dirs, files in os.walk(base_path):
+        # Skip training directories
+        if 'train' in root.lower():
             continue
+
         for file in files:
             if file.endswith('.pth'):
-                pth_files.append(os.path.join(root, file))
-    return pth_files
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, base_dir)
+                weights.append(rel_path)
+
+    return sorted(weights)
 
 
-def remove_weights_prefix(paths, base_dir="weights"):
-    """Remove the weights directory prefix from paths for display"""
-    os_name = platform.system()
-    if os_name.lower() == 'windows':
-        sep = '\\'
+def group_enhancement_weights(weights: List[str]) -> dict:
+    """Group enhancement weights by category"""
+    grouped = {
+        'Recommended': [],
+        'Face Recognition (Thesis)': [],
+        'LOLv2': [],
+        'Specialized': []
+    }
+
+    for weight in weights:
+        weight_lower = weight.lower()
+
+        if 'generalization' in weight_lower or 'sice' in weight_lower:
+            grouped['Recommended'].append(weight)
+        elif 'face_loss' in weight_lower or 'multilevel' in weight_lower or 'baseline' in weight_lower:
+            grouped['Face Recognition (Thesis)'].append(weight)
+        elif 'lolv2' in weight_lower or 'lol_v2' in weight_lower:
+            grouped['LOLv2'].append(weight)
+        else:
+            grouped['Specialized'].append(weight)
+
+    return grouped
+
+
+def load_enhancement_model(weight_path: str):
+    """Load enhancement model from checkpoint"""
+    global current_enhancement_model
+
+    # Check cache
+    if weight_path in enhancement_models:
+        current_enhancement_model = enhancement_models[weight_path]
+        return current_enhancement_model
+
+    # Load model
+    model = CIDNet()
+    full_path = Path('weights') / weight_path
+
+    if not full_path.exists():
+        raise ValueError(f"Weight file not found: {full_path}")
+
+    checkpoint = torch.load(full_path, map_location=device)
+
+    # Handle different checkpoint formats
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
     else:
-        sep = '/'
+        state_dict = checkpoint
 
-    prefix = base_dir + sep
-    cleaned_paths = [path.replace(prefix, '') if path.startswith(prefix) else path
-                     for path in paths]
-    return cleaned_paths
+    # Remove 'module.' prefix if present
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith('module.'):
+            new_state_dict[k[7:]] = v
+        else:
+            new_state_dict[k] = v
 
+    model.load_state_dict(new_state_dict)
+    model.to(device)
+    model.eval()
 
-def load_enhancer_model(model_path):
-    """Load CIDNet enhancer model"""
-    global enhancer
+    # Cache model
+    enhancement_models[weight_path] = model
+    current_enhancement_model = model
 
-    full_path = os.path.join('weights', model_path) if not os.path.isabs(model_path) else model_path
-
-    if not os.path.exists(full_path):
-        raise FileNotFoundError(f"Model weights not found: {full_path}")
-
-    enhancer = CIDNet().to(device)
-    enhancer.trans.gated = True
-    enhancer.trans.gated2 = True
-
-    state_dict = torch.load(full_path, map_location=device)
-    enhancer.load_state_dict(state_dict)
-    enhancer.eval()
-
-    return enhancer
+    return model
 
 
-def load_recognizer_model(recognizer_type, face_weights_path=None):
-    """Load face recognizer model"""
-    global recognizer
+def enhance_image(image: np.ndarray, model, gamma: float = 1.0) -> np.ndarray:
+    """Enhance low-light image using CIDNet"""
+    # Convert to tensor
+    img_tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float()
+    img_tensor = img_tensor.to(device)
 
-    recognizer_type = recognizer_type.lower()
+    # Enhance
+    with torch.no_grad():
+        enhanced_tensor = model(img_tensor)
 
-    if recognizer_type == 'adaface':
-        recognizer = AdaFaceRecognizer(
-            arch='ir_50',
-            weights_path=face_weights_path,
-            device=device
-        )
-    elif recognizer_type == 'insightface':
-        recognizer = InsightFaceRecognizer(device=device)
-    else:
-        raise ValueError(f"Unknown recognizer type: {recognizer_type}")
+    # Apply gamma adjustment if needed
+    if gamma != 1.0:
+        enhanced_tensor = torch.pow(enhanced_tensor, 1.0 / gamma)
 
-    return recognizer
+    # Convert back to numpy
+    enhanced = enhanced_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+    enhanced = np.clip(enhanced, 0, 1)
 
-
-def load_face_database(db_path):
-    """Load or create face database"""
-    global face_db, recognizer
-
-    if recognizer is None:
-        raise RuntimeError("Recognizer not loaded. Please select a recognizer first.")
-
-    # Create database if it doesn't exist
-    if not os.path.exists(db_path):
-        print(f"Database path does not exist: {db_path}")
-        print("Creating empty database. Please add face images to continue.")
-        face_db = FaceDatabase(db_path, recognizer, device=device)
-    else:
-        face_db = FaceDatabase(db_path, recognizer, device=device)
-
-    return face_db
+    return enhanced
 
 
-def preprocess_image(input_img):
-    """Convert PIL image to tensor and pad to multiple of 8"""
-    pil2tensor = transforms.Compose([transforms.ToTensor()])
-    input_tensor = pil2tensor(input_img)
+def format_gallery_results(matches: List[Tuple[str, float, str]],
+                           query_image: Optional[np.ndarray] = None) -> List[Tuple[np.ndarray, str]]:
+    """Format match results for Gradio gallery"""
+    gallery_images = []
 
-    factor = 8
-    h, w = input_tensor.shape[1], input_tensor.shape[2]
-    H, W = ((h + factor) // factor) * factor, ((w + factor) // factor) * factor
-    padh = H - h if h % factor != 0 else 0
-    padw = W - w if w % factor != 0 else 0
-    input_tensor = F.pad(input_tensor.unsqueeze(0), (0, padw, 0, padh), 'reflect')
+    # Add query image if provided
+    if query_image is not None:
+        gallery_images.append((query_image, "Query Image"))
 
-    return input_tensor
+    # Add matches
+    for i, (person_id, score, img_path) in enumerate(matches):
+        try:
+            # Load image
+            img = Image.open(img_path).convert('RGB')
+            img_array = np.array(img)
+
+            # Format label
+            label = f"#{i+1}: {person_id}\nScore: {score:.4f}"
+
+            gallery_images.append((img_array, label))
+        except Exception as e:
+            print(f"Warning: Failed to load {img_path}: {e}")
+
+    return gallery_images
 
 
-def process_query(
-    query_image,
-    enhancer_weights,
-    recognizer_type,
-    top_k,
-    gamma,
-    alpha_s,
-    alpha_i,
-    face_db_path,
-    face_weights_path
-):
-    """Process query image through enhancement and recognition pipeline
+# ============================================================================
+# Tab 1: Well-Lit Face Recognition
+# ============================================================================
 
-    Args:
-        query_image: Input low-light image (PIL Image)
-        enhancer_weights: Path to enhancer weights
-        recognizer_type: Type of face recognizer
-        top_k: Number of top matches to return
-        gamma: Gamma correction parameter
-        alpha_s: Saturation alpha parameter
-        alpha_i: Illumination alpha parameter
-        face_db_path: Path to face database
-        face_weights_path: Path to face recognizer weights
-
-    Returns:
-        tuple: (enhanced_image, matches_info)
-    """
-    global enhancer, recognizer, face_db, device
-
-    torch.set_grad_enabled(False)
-
-    if query_image is None:
-        return None, "No image provided"
+def recognize_face_welllit(image: np.ndarray, model_name: str, top_k: int,
+                          use_face_detection: bool) -> List[Tuple[np.ndarray, str]]:
+    """Recognize face in well-lit image"""
+    if image is None:
+        return []
 
     try:
-        # Step 1: Load/reload models if needed
-        if enhancer is None or enhancer_weights != getattr(process_query, '_last_weights', None):
-            enhancer = load_enhancer_model(enhancer_weights)
-            process_query._last_weights = enhancer_weights
-
-        if recognizer is None or recognizer_type != getattr(process_query, '_last_recognizer', None):
-            load_recognizer_model(recognizer_type, face_weights_path)
-            process_query._last_recognizer = recognizer_type
-
-        # Step 2: Preprocess input
-        input_tensor = preprocess_image(query_image)
-
-        # Step 3: Enhance low-light image
-        with torch.no_grad():
-            enhancer.trans.alpha_s = alpha_s
-            enhancer.trans.alpha = alpha_i
-
-            input_device = input_tensor.to(device)
-            enhanced = enhancer(input_device ** gamma)
-            enhanced = torch.clamp(enhanced, 0, 1)
-
-        # Crop back to original size
-        h, w = input_tensor.shape[1], input_tensor.shape[2]
-        enhanced = enhanced[:, :, :h, :w]
-
         # Convert to PIL
-        enhanced_img = transforms.ToPILImage()(enhanced.squeeze(0))
-
-        # Step 4: Load/reload face database if needed
-        if face_db is None or face_db_path != getattr(process_query, '_last_db_path', None):
-            face_db = load_face_database(face_db_path)
-            process_query._last_db_path = face_db_path
-
-        # Step 5: Extract face embedding
-        with torch.no_grad():
-            face_embedding = recognizer.get_embedding(enhanced)
-
-        # Step 6: Match against database
-        results = face_db.match(face_embedding.squeeze(0), top_k=top_k)
-
-        # Step 7: Format results
-        if not results:
-            matches_info = "No matches found. Database may be empty or no similar faces."
+        if isinstance(image, np.ndarray):
+            image_pil = Image.fromarray(image.astype(np.uint8))
         else:
-            matches_info = f"<h3>Top {len(results)} Matches</h3><table style='width:100%'>"
-            matches_info += "<tr><th>Rank</th><th>Person ID</th><th>Confidence</th></tr>"
+            image_pil = image
 
-            for rank, (person_id, confidence, img_path) in enumerate(results, 1):
-                conf_pct = confidence * 100
-                color = "green" if conf_pct > 70 else "orange" if conf_pct > 50 else "red"
-                matches_info += f"<tr><td>{rank}</td><td>{person_id}</td>"
-                matches_info += f"<td><span style='color:{color}'>{conf_pct:.2f}%</span></td></tr>"
+        # Create recognizer
+        recognizer = FaceRecognizerFactory.create(model_name, device=device)
 
-            matches_info += "</table>"
+        # Extract embedding
+        embedding = recognizer.get_embedding(image_pil, use_face_detection=use_face_detection)
 
-            # Add reference image path
-            if results[0][2]:
-                matches_info += f"<p><small>Reference: {results[0][2]}</small></p>"
+        # Match against database
+        matches = face_database.match(embedding, top_k=top_k, threshold=0.0)
 
-        return enhanced_img, matches_info
+        # Format results
+        gallery = format_gallery_results(matches, query_image=image)
+
+        return gallery
 
     except Exception as e:
+        print(f"Error in face recognition: {e}")
         import traceback
-        error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
-        return None, error_msg
+        traceback.print_exc()
+        return [(np.zeros((100, 100, 3), dtype=np.uint8), f"Error: {str(e)}")]
 
 
-def create_interface():
+# ============================================================================
+# Tab 2: Low-Light Face Recognition (Enhancement + Recognition)
+# ============================================================================
+
+def recognize_face_lowlight(image: np.ndarray, enhancement_weight: str, gamma: float,
+                           recognition_model: str, top_k: int) -> Tuple[np.ndarray, List[Tuple[np.ndarray, str]], str]:
+    """Enhance low-light image and perform face recognition"""
+    if image is None:
+        return None, [], "No image provided"
+
+    try:
+        start_time = time.time()
+
+        # Load enhancement model
+        load_start = time.time()
+        enhancement_model = load_enhancement_model(enhancement_weight)
+        load_time = time.time() - load_start
+
+        # Enhance image
+        enhance_start = time.time()
+        image_normalized = image.astype(np.float32) / 255.0
+        enhanced = enhance_image(image_normalized, enhancement_model, gamma=gamma)
+        enhanced_uint8 = (enhanced * 255).astype(np.uint8)
+        enhance_time = time.time() - enhance_start
+
+        # Create recognizer
+        recog_start = time.time()
+        recognizer = FaceRecognizerFactory.create(recognition_model, device=device)
+
+        # Extract embedding from enhanced image
+        enhanced_pil = Image.fromarray(enhanced_uint8)
+        embedding = recognizer.get_embedding(enhanced_pil, use_face_detection=False)
+
+        # Match against database
+        matches = face_database.match(embedding, top_k=top_k, threshold=0.0)
+        recog_time = time.time() - recog_start
+
+        # Format results
+        gallery = format_gallery_results(matches)
+
+        total_time = time.time() - start_time
+
+        # Create timing breakdown
+        timing_info = (f"⏱️ Processing Time Breakdown:\n"
+                      f"• Model Loading: {load_time:.3f}s\n"
+                      f"• Enhancement: {enhance_time:.3f}s\n"
+                      f"• Recognition: {recog_time:.3f}s\n"
+                      f"• Total: {total_time:.3f}s")
+
+        return enhanced_uint8, gallery, timing_info
+
+    except Exception as e:
+        print(f"Error in low-light recognition: {e}")
+        import traceback
+        traceback.print_exc()
+        error_msg = f"❌ Error: {str(e)}"
+        return None, [(np.zeros((100, 100, 3), dtype=np.uint8), error_msg)], error_msg
+
+
+# ============================================================================
+# Tab 3: Generate Synthetic Low-Light Images
+# ============================================================================
+
+# Difficulty parameters from generate_multilevel_training_sets.py
+DIFFICULTY_PARAMS = {
+    'Easy': {
+        'reduction_factor': 0.01,  # 1% light
+        'apply_noise': False,
+        'apply_white_balance': False,
+        'apply_blur': False,
+        'raw_sensor_mode': False  # Gamma correction ON
+    },
+    'Medium': {
+        'reduction_factor': 0.05,  # 5% light
+        'apply_noise': True,
+        'shot_noise_scale': 1.0,
+        'read_noise_std': 0.005,
+        'gain': 1.5,
+        'apply_white_balance': False,
+        'apply_blur': False,
+        'raw_sensor_mode': True
+    },
+    'Hard': {
+        'reduction_factor': 0.10,  # 10% light
+        'apply_noise': True,
+        'shot_noise_scale': 2.0,
+        'read_noise_std': 0.015,
+        'gain': 3.0,
+        'apply_white_balance': True,
+        'wb_variation': 0.1,
+        'apply_blur': False,
+        'raw_sensor_mode': True
+    }
+}
+
+
+def generate_lowlight_images(image: np.ndarray, difficulty: str,
+                            show_comparison: bool) -> List[Tuple[np.ndarray, str]]:
+    """Generate synthetic low-light images at different difficulty levels"""
+    if image is None:
+        return []
+
+    try:
+        # Normalize image
+        image_normalized = image.astype(np.float32) / 255.0
+
+        results = []
+
+        # Original image
+        results.append((image, "Original (Well-Lit)"))
+
+        # Generate for selected difficulty
+        if difficulty == "All Levels":
+            difficulties_to_generate = ['Easy', 'Medium', 'Hard']
+        else:
+            difficulties_to_generate = [difficulty]
+
+        for diff in difficulties_to_generate:
+            params = DIFFICULTY_PARAMS[diff]
+
+            # Generate low-light image
+            lowlight = synthesize_low_light_image(
+                image_normalized,
+                apply_light_reduction=True,
+                **params,
+                output_format='numpy'
+            )
+
+            # Convert to uint8
+            lowlight_uint8 = (np.clip(lowlight, 0, 1) * 255).astype(np.uint8)
+
+            # Create label
+            label = f"{diff} Degradation\n"
+            if diff == 'Easy':
+                label += "1% light, no noise, gamma ON"
+            elif diff == 'Medium':
+                label += "5% light, Poisson-Gaussian noise"
+            elif diff == 'Hard':
+                label += "10% light, high noise, WB shift"
+
+            results.append((lowlight_uint8, label))
+
+        return results
+
+    except Exception as e:
+        print(f"Error generating low-light images: {e}")
+        import traceback
+        traceback.print_exc()
+        return [(np.zeros((100, 100, 3), dtype=np.uint8), f"Error: {str(e)}")]
+
+
+# ============================================================================
+# Gradio Interface
+# ============================================================================
+
+def create_interface(db_path: str, recognizer_type: str = 'AdaFace'):
     """Create Gradio interface"""
-    global available_weights
+    global face_database
 
-    # Find available weights
-    weights_dir = 'weights'
-    if os.path.exists(weights_dir):
-        all_weights = find_pth_files(weights_dir)
-        available_weights = remove_weights_prefix(all_weights, weights_dir)
+    # Initialize face database
+    print(f"Loading face database from: {db_path}")
+    recognizer = FaceRecognizerFactory.create(recognizer_type, device=device)
+    face_database = FaceDatabase(
+        db_path=db_path,
+        recognizer=recognizer,
+        device=device,
+        use_face_detection=False
+    )
+    print(f"Database loaded: {face_database}")
 
-    if not available_weights:
-        available_weights = ["SICE.pth", "generalization.pth"]
-        print("Warning: No weights found in weights/ directory")
+    # Find available enhancement weights
+    available_weights = find_enhancement_weights('weights')
+    if len(available_weights) == 0:
+        print("Warning: No enhancement weights found in 'weights/' directory")
+        available_weights = ['No weights found']
 
-    # Default selections
-    default_weights = "SICE.pth" if "SICE.pth" in available_weights else available_weights[0] if available_weights else ""
+    # Set default weight
+    default_weight = 'multilevel/face_loss5/epoch_40.pth'
+    if default_weight not in available_weights and len(available_weights) > 0:
+        default_weight = available_weights[0]
 
-    with gr.Blocks(title="Face Recognition Demo") as interface:
-        gr.Markdown("# Low-Light Face Recognition Demo")
-        gr.Markdown("Upload a low-light face image to enhance and match against the face database.")
+    # Create Gradio interface with three tabs
+    with gr.Blocks(title="Face Recognition Demo", theme=gr.themes.Soft()) as demo:
+        gr.Markdown("# 🔍 Face Recognition Demo Application")
+        gr.Markdown("*Low-Light Face Recognition Enhancement - Thesis Demonstration*")
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                # Input image
-                query_image = gr.Image(
-                    label="Low-Light Query Image",
-                    type="pil",
-                    height=300
+        with gr.Tabs():
+            # Tab 1: Well-Lit Face Recognition
+            with gr.Tab("✨ Well-Lit Face Recognition"):
+                gr.Markdown("### Test face recognition on well-lit images")
+
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        input_image_welllit = gr.Image(
+                            label="Upload Face Image",
+                            type="numpy",
+                            height=300
+                        )
+
+                        model_selector = gr.Dropdown(
+                            choices=["AdaFace", "InsightFace"],
+                            value="AdaFace",
+                            label="Recognition Model"
+                        )
+
+                        topk_slider = gr.Slider(
+                            minimum=1,
+                            maximum=10,
+                            value=5,
+                            step=1,
+                            label="Top-K Matches"
+                        )
+
+                        face_detection_toggle = gr.Checkbox(
+                            label="Enable Face Detection",
+                            value=False,
+                            info="Use for full scene images (disable for pre-cropped faces)"
+                        )
+
+                        recognize_btn = gr.Button("🔍 Recognize Face", variant="primary")
+
+                    with gr.Column(scale=2):
+                        output_gallery_welllit = gr.Gallery(
+                            label="Top Matches",
+                            columns=4,
+                            rows=2,
+                            height=350,
+                            object_fit="contain"
+                        )
+
+                recognize_btn.click(
+                    fn=recognize_face_welllit,
+                    inputs=[input_image_welllit, model_selector, topk_slider, face_detection_toggle],
+                    outputs=output_gallery_welllit
                 )
 
-                # Configuration
-                gr.Markdown("### Configuration")
+            # Tab 2: Low-Light Face Recognition
+            with gr.Tab("🌙 Low-Light Face Recognition"):
+                gr.Markdown("### Enhancement + Recognition Pipeline for Low-Light Images")
 
-                enhancer_weights = gr.Dropdown(
-                    choices=available_weights,
-                    value=default_weights,
-                    label="Enhancer Weights",
-                    info="Select CIDNet model weights"
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        input_image_lowlight = gr.Image(
+                            label="Upload Low-Light Face Image",
+                            type="numpy",
+                            height=300
+                        )
+
+                        enhancement_selector = gr.Dropdown(
+                            choices=available_weights,
+                            value=default_weight,
+                            label="Enhancement Model"
+                        )
+
+                        gamma_slider = gr.Slider(
+                            minimum=1.0,
+                            maximum=3.0,
+                            value=1.0,
+                            step=0.1,
+                            label="Gamma Adjustment (Brightness Boost)"
+                        )
+
+                        recognition_model_selector = gr.Dropdown(
+                            choices=["AdaFace", "InsightFace"],
+                            value="AdaFace",
+                            label="Recognition Model"
+                        )
+
+                        topk_slider_lowlight = gr.Slider(
+                            minimum=1,
+                            maximum=10,
+                            value=5,
+                            step=1,
+                            label="Top-K Matches"
+                        )
+
+                        enhance_recognize_btn = gr.Button("🚀 Enhance & Recognize", variant="primary")
+
+                    with gr.Column(scale=2):
+                        enhanced_output = gr.Image(
+                            label="Enhanced Image",
+                            type="numpy",
+                            height=250,
+                            show_download_button=True
+                        )
+
+                        output_gallery_lowlight = gr.Gallery(
+                            label="Top Matches",
+                            columns=4,
+                            rows=2,
+                            height=300,
+                            object_fit="contain"
+                        )
+
+                        timing_output = gr.Textbox(
+                            label="Processing Time",
+                            lines=5
+                        )
+
+                enhance_recognize_btn.click(
+                    fn=recognize_face_lowlight,
+                    inputs=[input_image_lowlight, enhancement_selector, gamma_slider,
+                           recognition_model_selector, topk_slider_lowlight],
+                    outputs=[enhanced_output, output_gallery_lowlight, timing_output]
                 )
 
-                recognizer_type = gr.Radio(
-                    choices=["AdaFace", "InsightFace"],
-                    value="AdaFace",
-                    label="Face Recognizer",
-                    info="Select face recognition model"
+            # Tab 3: Generate Synthetic Low-Light Images
+            with gr.Tab("🎨 Generate Synthetic Low-Light"):
+                gr.Markdown("### Generate Synthetic Low-Light Images for Demonstration")
+
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        input_image_synthetic = gr.Image(
+                            label="Upload Well-Lit Face Image",
+                            type="numpy",
+                            height=300
+                        )
+
+                        difficulty_selector = gr.Dropdown(
+                            choices=["Easy", "Medium", "Hard", "All Levels"],
+                            value="All Levels",
+                            label="Difficulty Level"
+                        )
+
+                        comparison_toggle = gr.Checkbox(
+                            label="Show Side-by-Side Comparison",
+                            value=True,
+                            info="Display original alongside degraded versions"
+                        )
+
+                        generate_btn = gr.Button("🎨 Generate Low-Light Images", variant="primary")
+
+                        gr.Markdown("""
+                        **Difficulty Levels:**
+                        - **Easy**: 1% light, no noise, gamma correction ON
+                        - **Medium**: 5% light, Poisson-Gaussian noise
+                        - **Hard**: 10% light, high noise, white balance shift
+                        """)
+
+                    with gr.Column(scale=2):
+                        output_gallery_synthetic = gr.Gallery(
+                            label="Generated Low-Light Images",
+                            columns=3,
+                            rows=2,
+                            height=400,
+                            object_fit="contain"
+                        )
+
+                generate_btn.click(
+                    fn=generate_lowlight_images,
+                    inputs=[input_image_synthetic, difficulty_selector, comparison_toggle],
+                    outputs=output_gallery_synthetic
                 )
 
-                top_k = gr.Slider(
-                    minimum=1,
-                    maximum=10,
-                    value=5,
-                    step=1,
-                    label="Top-K Matches",
-                    info="Number of matches to display"
-                )
+        # Footer
+        gr.Markdown("""
+        ---
+        **System Information:**
+        - Device: {}
+        - Database: {} people, {} total embeddings
+        - Enhancement Weights: {} available
+        """.format(
+            device.upper(),
+            len(face_database.person_ids),
+            sum(len(v) for v in face_database.embeddings.values()),
+            len(available_weights)
+        ))
 
-                # Enhancement parameters
-                gr.Markdown("### Enhancement Parameters")
+    return demo
 
-                gamma = gr.Slider(
-                    minimum=0.1,
-                    maximum=5.0,
-                    value=1.0,
-                    step=0.01,
-                    label="Gamma",
-                    info="Lower is lighter. Best range: [0.5, 2.5]"
-                )
 
-                alpha_s = gr.Slider(
-                    minimum=0.0,
-                    maximum=2.0,
-                    value=1.0,
-                    step=0.01,
-                    label="Alpha-s (Saturation)",
-                    info="Higher is more saturated"
-                )
-
-                alpha_i = gr.Slider(
-                    minimum=0.1,
-                    maximum=2.0,
-                    value=1.0,
-                    step=0.01,
-                    label="Alpha-i (Illumination)",
-                    info="Higher is lighter"
-                )
-
-                # Advanced settings
-                with gr.Accordion("Advanced Settings", open=False):
-                    face_db_path = gr.Textbox(
-                        value=DEFAULT_DB_PATH,
-                        label="Face Database Path",
-                        info="Path to face database directory"
-                    )
-
-                    face_weights_path = gr.Textbox(
-                        value="",
-                        label="Face Recognizer Weights (Optional)",
-                        info="Path to face recognizer weights file"
-                    )
-
-                # Process button
-                process_btn = gr.Button("Process", variant="primary", size="lg")
-
-            with gr.Column(scale=1):
-                # Outputs
-                enhanced_image = gr.Image(
-                    label="Enhanced Image",
-                    type="pil",
-                    height=300
-                )
-
-                matches_output = gr.HTML(
-                    label="Matching Results",
-                    value="<p>Upload an image and click Process to see results.</p>"
-                )
-
-        # Event handlers
-        process_btn.click(
-            fn=process_query,
-            inputs=[
-                query_image,
-                enhancer_weights,
-                recognizer_type,
-                top_k,
-                gamma,
-                alpha_s,
-                alpha_i,
-                face_db_path,
-                face_weights_path
-            ],
-            outputs=[enhanced_image, matches_output]
-        )
-
-        # Examples
-        gr.Markdown("### Examples")
-        gr.Markdown("<small>Tip: The face database should be organized as `face_database/person_name/*.jpg`</small>")
-
-    return interface
-
+# ============================================================================
+# Main Entry Point
+# ============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description='Face Recognition Demo App')
-    parser.add_argument('--port', type=int, default=7863, help='Server port')
-    parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'],
-                       help='Device to use')
-    parser.add_argument('--share', action='store_true', help='Create public link')
-    parser.add_argument('--db_path', type=str, default=DEFAULT_DB_PATH,
-                       help='Path to face database')
+    parser = argparse.ArgumentParser(description="Face Recognition Demo Application")
+    parser.add_argument('--db_path', type=str, default='face_database',
+                       help='Path to face database directory')
+    parser.add_argument('--recognizer', type=str, default='AdaFace',
+                       choices=['AdaFace', 'InsightFace'],
+                       help='Default recognizer to use for database')
+    parser.add_argument('--port', type=int, default=7860,
+                       help='Port to run Gradio server on')
+    parser.add_argument('--share', action='store_true',
+                       help='Create public share link')
 
     args = parser.parse_args()
 
-    global device
-
-    # Check CUDA availability
-    if args.device == 'cuda' and not torch.cuda.is_available():
-        print("Warning: CUDA not available, using CPU")
-        device = 'cpu'
-    else:
-        device = args.device
-
-    print(f"Using device: {device}")
-
     # Create interface
-    interface = create_interface()
+    demo = create_interface(
+        db_path=args.db_path,
+        recognizer_type=args.recognizer
+    )
 
     # Launch
-    print(f"\nStarting Face Recognition Demo on port {args.port}")
-    print(f"Face database path: {args.db_path}")
+    print(f"\n{'='*70}")
+    print(f"🚀 Launching Face Recognition Demo Application")
+    print(f"{'='*70}")
+    print(f"Database: {args.db_path}")
+    print(f"Recognizer: {args.recognizer}")
+    print(f"Device: {device.upper()}")
+    print(f"Port: {args.port}")
+    print(f"{'='*70}\n")
 
-    interface.launch(
+    demo.launch(
+        server_name="0.0.0.0",
         server_port=args.port,
-        share=args.share,
-        server_name="0.0.0.0"
+        share=args.share
     )
 
 

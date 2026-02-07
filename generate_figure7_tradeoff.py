@@ -1,12 +1,15 @@
 """
-Figure 7: Image quality vs. face verification trade-off analysis
+Figure 7: Quality-Performance Trade-off Analysis (4-panel)
+Panels: A) PSNR vs EER, B) SSIM vs EER, C) PSNR vs TAR, D) SSIM vs TAR
 """
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+from matplotlib.lines import Line2D
 import json
 import numpy as np
 
 def generate_figure7():
-    """Generate Figure 7: Quality-verification trade-off"""
+    """Generate Figure 7: Quality-Performance Trade-off (4 panels)"""
 
     # Load extracted data
     with open('thesis_data_extracted.json', 'r') as f:
@@ -14,14 +17,15 @@ def generate_figure7():
 
     eval_data = data['evaluation']
 
-    # Setup figure
-    fig, ax = plt.subplots(figsize=(10, 8))
+    # Setup figure with 2x2 grid
+    fig = plt.figure(figsize=(14, 12))
+    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
 
-    # Color scheme
+    # Color scheme (colorblind-friendly)
     colors = {
-        'baseline': '#0173B2',
-        'face_loss3': '#029E73',
-        'face_loss5': '#DE8F05'
+        'baseline': '#0173B2',      # Blue
+        'face_loss3': '#029E73',    # Green
+        'face_loss5': '#DE8F05'     # Orange
     }
 
     # Marker styles for difficulty levels
@@ -40,82 +44,206 @@ def generate_figure7():
     }
 
     difficulties = ['easy', 'medium', 'hard', 'mixed']
+    model_names = ['baseline', 'face_loss3', 'face_loss5']
 
-    # Plot points for each model and difficulty
-    for model_name, color in colors.items():
+    # Collect all data points for axis limit calculation
+    all_psnr = []
+    all_ssim = []
+    all_eer = []
+    all_tar = []
+
+    for model_name in model_names:
+        for diff in difficulties:
+            all_psnr.append(eval_data[model_name][diff]['psnr'])
+            all_ssim.append(eval_data[model_name][diff]['ssim'])
+            all_eer.append(eval_data[model_name][diff]['eer'])
+            all_tar.append(eval_data[model_name][diff]['tar_001'])
+
+    # Calculate axis limits with padding
+    psnr_min, psnr_max = min(all_psnr) - 1, max(all_psnr) + 1
+    ssim_min, ssim_max = min(all_ssim) - 0.02, max(all_ssim) + 0.02
+    eer_min, eer_max = -0.05, max(all_eer) + 0.15
+    tar_min, tar_max = min(all_tar) - 1, max(all_tar) + 0.5
+
+    # ========== PANEL A: PSNR vs. EER ==========
+    ax_a = fig.add_subplot(gs[0, 0])
+
+    for model_name in model_names:
         for diff in difficulties:
             psnr = eval_data[model_name][diff]['psnr']
-            genuine_sim = eval_data[model_name][diff]['genuine_similarity']
+            eer = eval_data[model_name][diff]['eer']
 
-            # VALIDATION CHECK
-            print(f"{model_name}/{diff}: PSNR={psnr:.2f}, GenuineSim={genuine_sim:.4f}")
+            print(f"Panel A - {model_name}/{diff}: PSNR={psnr:.2f}, EER={eer:.2f}")
 
-            ax.scatter(psnr, genuine_sim,
-                      c=color, marker=markers[diff], s=marker_sizes[diff],
-                      edgecolors='black', linewidths=1.5, alpha=0.8,
-                      label=f'{model_name}_{diff}')
+            ax_a.scatter(psnr, eer,
+                        c=colors[model_name],
+                        marker=markers[diff],
+                        s=marker_sizes[diff],
+                        edgecolors='black',
+                        linewidths=1.5,
+                        alpha=0.8)
 
-    # Create custom legend (models + difficulty markers)
-    # Model legend
-    from matplotlib.lines import Line2D
-    model_handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=colors[m],
-                           markersize=10, label=m.replace('_', ' ').title(), markeredgecolor='black')
-                    for m in ['baseline', 'face_loss3', 'face_loss5']]
+    ax_a.set_xlabel('PSNR (dB)', fontsize=12, fontweight='bold')
+    ax_a.set_ylabel('EER (%)', fontsize=12, fontweight='bold')
+    ax_a.set_title('A', fontsize=14, fontweight='bold', loc='left')
+    ax_a.grid(True, alpha=0.3, linestyle='--')
+    ax_a.set_xlim(psnr_min, psnr_max)
+    ax_a.set_ylim(eer_min, eer_max)
 
-    # Difficulty legend
-    diff_handles = [Line2D([0], [0], marker=markers[d], color='w', markerfacecolor='gray',
-                          markersize=8, label=d.capitalize(), markeredgecolor='black')
+    # Add ideal region annotation (lower-right: high PSNR, low EER)
+    ax_a.annotate('Ideal', xy=(0.85, 0.15), xycoords='axes fraction',
+                 fontsize=10, color='green', fontweight='bold',
+                 bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.6))
+
+    # ========== PANEL B: SSIM vs. EER ==========
+    ax_b = fig.add_subplot(gs[0, 1])
+
+    for model_name in model_names:
+        for diff in difficulties:
+            ssim = eval_data[model_name][diff]['ssim']
+            eer = eval_data[model_name][diff]['eer']
+
+            print(f"Panel B - {model_name}/{diff}: SSIM={ssim:.4f}, EER={eer:.2f}")
+
+            ax_b.scatter(ssim, eer,
+                        c=colors[model_name],
+                        marker=markers[diff],
+                        s=marker_sizes[diff],
+                        edgecolors='black',
+                        linewidths=1.5,
+                        alpha=0.8)
+
+    ax_b.set_xlabel('SSIM', fontsize=12, fontweight='bold')
+    ax_b.set_ylabel('EER (%)', fontsize=12, fontweight='bold')
+    ax_b.set_title('B', fontsize=14, fontweight='bold', loc='left')
+    ax_b.grid(True, alpha=0.3, linestyle='--')
+    ax_b.set_xlim(ssim_min, ssim_max)
+    ax_b.set_ylim(eer_min, eer_max)
+
+    # Add ideal region annotation (lower-right: high SSIM, low EER)
+    ax_b.annotate('Ideal', xy=(0.85, 0.15), xycoords='axes fraction',
+                 fontsize=10, color='green', fontweight='bold',
+                 bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.6))
+
+    # ========== PANEL C: PSNR vs. TAR@FAR=0.1% ==========
+    ax_c = fig.add_subplot(gs[1, 0])
+
+    for model_name in model_names:
+        for diff in difficulties:
+            psnr = eval_data[model_name][diff]['psnr']
+            tar = eval_data[model_name][diff]['tar_001']
+
+            print(f"Panel C - {model_name}/{diff}: PSNR={psnr:.2f}, TAR={tar:.1f}")
+
+            ax_c.scatter(psnr, tar,
+                        c=colors[model_name],
+                        marker=markers[diff],
+                        s=marker_sizes[diff],
+                        edgecolors='black',
+                        linewidths=1.5,
+                        alpha=0.8)
+
+    ax_c.set_xlabel('PSNR (dB)', fontsize=12, fontweight='bold')
+    ax_c.set_ylabel('TAR @ FAR=0.1% (%)', fontsize=12, fontweight='bold')
+    ax_c.set_title('C', fontsize=14, fontweight='bold', loc='left')
+    ax_c.grid(True, alpha=0.3, linestyle='--')
+    ax_c.set_xlim(psnr_min, psnr_max)
+    ax_c.set_ylim(tar_min, tar_max)
+
+    # Add ideal region annotation (upper-right: high PSNR, high TAR)
+    ax_c.annotate('Ideal', xy=(0.85, 0.85), xycoords='axes fraction',
+                 fontsize=10, color='green', fontweight='bold',
+                 bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.6))
+
+    # ========== PANEL D: SSIM vs. TAR@FAR=0.1% ==========
+    ax_d = fig.add_subplot(gs[1, 1])
+
+    for model_name in model_names:
+        for diff in difficulties:
+            ssim = eval_data[model_name][diff]['ssim']
+            tar = eval_data[model_name][diff]['tar_001']
+
+            print(f"Panel D - {model_name}/{diff}: SSIM={ssim:.4f}, TAR={tar:.1f}")
+
+            ax_d.scatter(ssim, tar,
+                        c=colors[model_name],
+                        marker=markers[diff],
+                        s=marker_sizes[diff],
+                        edgecolors='black',
+                        linewidths=1.5,
+                        alpha=0.8)
+
+    ax_d.set_xlabel('SSIM', fontsize=12, fontweight='bold')
+    ax_d.set_ylabel('TAR @ FAR=0.1% (%)', fontsize=12, fontweight='bold')
+    ax_d.set_title('D', fontsize=14, fontweight='bold', loc='left')
+    ax_d.grid(True, alpha=0.3, linestyle='--')
+    ax_d.set_xlim(ssim_min, ssim_max)
+    ax_d.set_ylim(tar_min, tar_max)
+
+    # Add ideal region annotation (upper-right: high SSIM, high TAR)
+    ax_d.annotate('Ideal', xy=(0.85, 0.85), xycoords='axes fraction',
+                 fontsize=10, color='green', fontweight='bold',
+                 bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.6))
+
+    # ========== LEGENDS ==========
+    # Create custom legend handles for models
+    model_labels = {
+        'baseline': 'Baseline',
+        'face_loss3': 'Face Loss (FR=0.3)',
+        'face_loss5': 'Face Loss (FR=0.5)'
+    }
+
+    model_handles = [Line2D([0], [0], marker='o', color='w',
+                           markerfacecolor=colors[m],
+                           markersize=10,
+                           label=model_labels[m],
+                           markeredgecolor='black',
+                           markeredgewidth=1.5)
+                    for m in model_names]
+
+    # Create custom legend handles for difficulties
+    diff_handles = [Line2D([0], [0], marker=markers[d], color='w',
+                          markerfacecolor='gray',
+                          markersize=8,
+                          label=d.capitalize(),
+                          markeredgecolor='black',
+                          markeredgewidth=1.5)
                    for d in difficulties]
 
-    first_legend = ax.legend(handles=model_handles, loc='lower right',
-                            title='Model', frameon=True, fontsize=10)
-    ax.add_artist(first_legend)
-    ax.legend(handles=diff_handles, loc='upper left',
-             title='Difficulty', frameon=True, fontsize=10)
+    # Add model legend to Panel A (upper left)
+    legend1_a = ax_a.legend(handles=model_handles, loc='upper left',
+                           title='Model', frameon=True, fontsize=10,
+                           title_fontsize=10)
 
-    # Labels
-    ax.set_xlabel('PSNR (dB) - Image Quality', fontsize=13, fontweight='bold')
-    ax.set_ylabel('Genuine Face Similarity (Cosine)', fontsize=13, fontweight='bold')
-    ax.set_title('Figure 7: Image Quality vs. Face Verification Trade-off',
-                fontsize=14, fontweight='bold')
-    ax.grid(True, alpha=0.3, linestyle='--')
+    # Add difficulty legend to Panel A (upper right)
+    ax_a.legend(handles=diff_handles, loc='upper right',
+               title='Difficulty', frameon=True, fontsize=10,
+               title_fontsize=10)
+    ax_a.add_artist(legend1_a)  # Re-add first legend
 
-    # Set limits
-    ax.set_xlim(21, 38)
-    ax.set_ylim(0.92, 1.005)
+    # Add model legend to Panel C (lower left)
+    legend1_c = ax_c.legend(handles=model_handles, loc='lower left',
+                           title='Model', frameon=True, fontsize=10,
+                           title_fontsize=10)
 
-    # Add diagonal trend line (show positive correlation)
-    all_psnr = [eval_data[m][d]['psnr'] for m in colors.keys() for d in difficulties]
-    all_sim = [eval_data[m][d]['genuine_similarity'] for m in colors.keys() for d in difficulties]
+    # Add difficulty legend to Panel C (lower right)
+    ax_c.legend(handles=diff_handles, loc='lower right',
+               title='Difficulty', frameon=True, fontsize=10,
+               title_fontsize=10)
+    ax_c.add_artist(legend1_c)  # Re-add first legend
 
-    # Linear regression
-    z = np.polyfit(all_psnr, all_sim, 1)
-    p = np.poly1d(z)
-    x_trend = np.linspace(22, 37, 100)
-    ax.plot(x_trend, p(x_trend), "k--", alpha=0.5, linewidth=2, label='Trend')
+    # ========== OVERALL TITLE ==========
+    plt.suptitle('Quality-Performance Trade-off Analysis',
+                fontsize=16, fontweight='bold', y=0.995)
 
-    # Add annotations
-    ax.annotate('Upper right quadrant:\nBest zone (high quality + high similarity)',
-               xy=(35, 0.995), xytext=(28, 0.965),
-               arrowprops=dict(arrowstyle='->', color='green', lw=2),
-               fontsize=10, color='green', fontweight='bold',
-               bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.7))
-
-    # Add text box with summary stats
-    textstr = f'''Summary (across all tests):
-Baseline:   PSNR = 27.50 dB,  Sim = 0.965
-Face Loss 3: PSNR = 27.65 dB,  Sim = 0.970
-Face Loss 5: PSNR = 27.95 dB,  Sim = 0.975
-
-No trade-off: Both metrics improve!'''
-
-    ax.text(0.02, 0.98, textstr, transform=ax.transAxes,
-           fontsize=9, verticalalignment='top',
-           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-
+    # ========== SAVE OUTPUTS ==========
     plt.savefig('figures/figure7_quality_tradeoff.pdf', dpi=300, bbox_inches='tight')
     plt.savefig('figures/figure7_quality_tradeoff.png', dpi=300, bbox_inches='tight')
-    print("✓ Figure 7 saved")
+
+    print("\n✓ Figure 7 saved successfully!")
+    print("  - figures/figure7_quality_tradeoff.pdf")
+    print("  - figures/figure7_quality_tradeoff.png")
+
     plt.close()
 
 if __name__ == '__main__':
